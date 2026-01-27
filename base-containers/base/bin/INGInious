@@ -389,7 +389,8 @@ class INGIniousMainRunner:
                 try:
                     user = "root" if self.run_as_root else "worker"
                     stdout, stderr = execute_process(run_final_cmd, user=user)
-                except:
+                except Exception as e:
+                    print("Exception while running the grading script: {}".format(e))
                     inginious_container_api.feedback.set_global_result('crash')
                     inginious_container_api.feedback.set_global_feedback(
                         "An error occured while running the grading script. It is possible that it is non-executable or made a timeout")

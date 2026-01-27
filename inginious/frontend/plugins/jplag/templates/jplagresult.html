@@ -1,0 +1,19 @@
+{% extends "layout.html" %}
+{% block title %} JPlag - Analyze of submissions {% endblock %}
+
+{% block content %}
+<style type="text/css" media="screen">
+.jplag-container {
+    position: relative;
+    padding-bottom: 75%;
+    height: 0;
+    overflow: hidden;
+}
+</style>
+<p>Pay attention that results are only available from inside of UCLouvain network.</p>
+
+<div class="jplag-container">
+    <a href="{{url}}">Results</a>
+</div>
+
+{% endblock %}
