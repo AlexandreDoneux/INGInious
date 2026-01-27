@@ -102,7 +102,7 @@ def init(plugin_manager, config):
 
             tasks = course.get_tasks()
             _logger.info("Rendering task selection")
-            return render_template("inginious-jplag/templates/jplag_select_task.html", template_folder=PATH_TO_TEMPLATES,
+            return render_template("jplag/templates/jplag_select_task.html", template_folder=PATH_TO_TEMPLATES,
                                                course=courseid, tasks=tasks)
 
     class JPLAGPage(INGIniousAdminPage):
@@ -115,7 +115,7 @@ def init(plugin_manager, config):
             subs = [s.to_mongo().to_dict() for s in subs_qs]
             res = {elem['username'][0]: elem for elem in subs}
 
-            return render_template("inginious-jplag/templates/jplagselector.html", template_folder=PATH_TO_TEMPLATES, subs=res)
+            return render_template("jplag/templates/jplagselector.html", template_folder=PATH_TO_TEMPLATES, subs=res)
 
         def POST_AUTH(self, courseid, taskid):
             """ POST REQUEST """
@@ -146,7 +146,7 @@ def init(plugin_manager, config):
                                      'nyear': x['nextyear'] if 'nextyear' in x else "no",
                                      'check_archives': x['addarchives'] if 'addarchives' in x else "no"})
             if r.status_code == 200:
-                return render_template("inginious-jplag/templates/jplagresult.html", template_folder=PATH_TO_TEMPLATES,
+                return render_template("jplag/templates/jplagresult.html", template_folder=PATH_TO_TEMPLATES,
                                                    url=r.content.decode('UTF-8'))
             else:
                 return r.content.decode('utf-8')
@@ -156,4 +156,4 @@ def init(plugin_manager, config):
     plugin_manager.add_page("/jplag/<courseid>/<taskid>", JPLAGPage.as_view("jplagpage"))
     plugin_manager.add_page("/jplagselecttask/<courseid>/", JPLAGSelectPage.as_view("jplagselectpage"))
     plugin_manager.add_hook('course_admin_menu', add_admin_menu)
-    plugin_manager.add_template_prefix("inginious-jplag", PATH_TO_PLUGIN)
+    plugin_manager.add_template_prefix("jplag", PATH_TO_PLUGIN)
