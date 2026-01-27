@@ -1,0 +1,88 @@
+{% extends "layout.html" %}
+{% block title %} JPlag - Analysis of submissions {% endblock %}
+
+{% block content %}
+<h2>Please select submissions to analyze.</h2>
+
+<div class="btn-group">
+    <button class="btn btn-primary" id="selectall">Select all</button>
+<button class="btn btn-primary" id="selectnone">Select nothing</button>
+</div>
+
+<form method="post" enctype="multipart/form-data">
+    <ul class="list-group mb-3">
+        {% for k,v in subs.items() %}
+            <li class="list-group-item content"><input type="checkbox" class="checkboxselect" name="{{ v.get('_id') }}"><label>{{k}} - {{v.get('submitted_on')}}</label></li>
+        {% endfor %}
+    </ul>
+    <h2>Select code language</h2>
+    <select class="form-control mb-3" name="selectLang">
+      <option value="java17">Java</option>
+      <option value="python3">Python</option>
+      <option value="c/c++">C/C++</option>
+      <option value="text">Text</option>
+    </select>
+
+    <h2>Insert a template archive (tar)</h2>
+    <input type="file" class="for-control mb-3" name="templateFile">
+
+    <h2>Insert an archive of extra old submissions (tar)</h2>
+    <input type="file" class="for-control mb-3" name="archiveFile">
+
+    <h2>Insert an exclude file (txt)
+    <a class="btn btn-sm btn-secondary"
+        tabindex="0" role="button" data-trigger="focus"
+        data-container="body" data-toggle="popover"
+        data-placement="right"
+        title="Exclude file"
+        data-content="Create an exclude file with a list of filename that you want to skip (one file per line)"><i class="fa fa-info"></i></a></h2>
+    <input type="file" class="for-control mb-3" name="excludeFile">
+
+    <h2>Percentage
+        <a  class="btn btn-sm btn-secondary"
+        tabindex="0" role="button" data-trigger="focus"
+        data-container="body" data-toggle="popover"
+        data-placement="right"
+        title="Percentage"
+        data-content="All matches with more than X% similarity will be saved. Select the percentage."><i class="fa fa-info"></i></a></h2>
+     <input type="number" class="form-control mb-3" name="percentage" min="0" max="100" value="70">
+
+    <h2>Save submissions files for next year?
+        <a  class="btn btn-sm btn-secondary"
+        tabindex="0" role="button" data-trigger="focus"
+        data-container="body" data-toggle="popover"
+        data-placement="right"
+        title="Submissions files"
+        data-content="Keep the files from submissions you selected for futur jplag check"><i class="fa fa-info"></i></a></h2>
+    <input type="checkbox" class="form-check-inline mb-3" name="nextyear">
+
+    <h2>Compare with archives?
+        <a class="btn btn-sm btn-secondary"
+        tabindex="0" role="button" data-trigger="focus"
+        data-container="body" data-toggle="popover"
+        data-placement="right"
+        title="Comparaison with archives"
+        data-content="Let JPlag have a look in archives folder"><i class="fa fa-info"></i></a></h2>
+    <input type="checkbox" class="form-check-inline" name="addarchives">
+
+    <input type="submit" class="btn btn-secondary btn-lg btn-block " value="Submit">
+</form>
+
+
+<script>
+    $( document ).ready(function() {
+        $('#selectall').click(function(){
+            $('.checkboxselect').prop('checked',true);
+        });
+
+        $('#selectnone').click(function(){
+            $('.checkboxselect').prop('checked',false);
+        });
+    });
+</script>
+<script>
+$(document).ready(function(){
+    $('[data-toggle="popover"]').popover();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+
+{% block title %} JPlag - Analysis of submissions {% endblock %}
+
+{% block content %}
+
+<h2>Before any use</h2>
+
+<p>
+  This plugin should allow administrator of a course to run JPlag tools to detect plagiarism.
+  In case of problem, feel free to send an email to : <a href="mailto:request-ingi@uclouvain.be">Sysadmin INGI</a>.
+</p>
+<p>
+  The server that performs the plagiarism check waits for a specific architecture:<br>
+  <code>
+    <div>foldertotest</div>
+    <div style="padding-left: 10px;">->first_student</div>
+    <div style="padding-left:30px;">file_to_test</div>
+    <div style="padding-left: 10px;">->second_student</div>
+    <div style="padding-left:30px;">other_file</div>
+    <div style="padding-left: 10px;">->...</div>
+  </code>
+</p>
+
+<p>
+  To get this structure, please add this little part of script to your run file.
+  <br>How to:<br>
+  <em>Python way</em><br>
+  <code>
+    from inginious import input<br>
+
+    student_name = input.get_input("@username")<br>
+    subprocess.call(['archive', '-a', 'student/FileIWantToTest.java','-o',student_name+''], universal_newlines=True)<br>
+    subprocess.call(['archive', '-a', 'student/MyOtherFileIWantToTest.java','-o',student_name+''], universal_newlines=True)<br>
+  </code>
+  <br>
+  This allows JPlag to find wich files must be tested.
+</p>
+
+<ul class="list-group">
+    {% for elem in tasks %}
+        <a class="list-group-item list-group-item-action" href="/jplag/{{course}}/{{elem}}">{{elem}}</a>
+    {% endfor %}
+</ul>
+{% endblock %}
