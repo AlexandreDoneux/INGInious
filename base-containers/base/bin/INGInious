@@ -20,6 +20,19 @@ import asyncio
 import struct
 import zmq
 import zmq.asyncio
+import pydevd_pycharm
+import socket
+
+
+print("DEBUG HOST:", socket.gethostbyname("host.docker.internal"))
+
+pydevd_pycharm.settrace(
+    'host.docker.internal',  # IMPORTANT -> check why, has to do with usage on Linux
+    port=5678,
+    stdout_to_server=True,
+    stderr_to_server=True,
+    suspend=False
+)
 
 
 ELF_MAGIC = b"\x7F\x45\x4C\x46"
