@@ -171,7 +171,7 @@ class Backend(object):
         for job_id, content in self._job_running.items():
             agent_friendly_name = self._registered_agents[content.agent_addr].name
             jobs_running.append((content.msg.job_id, content.client_addr == client_addr, agent_friendly_name,
-                                 content.msg.course_id+"/"+content.msg.task_id,
+                                 content.msg.course_id+"/"+content.msg.task_id if content.msg.course_id and content.msg.task_id else "non task job",
                                  content.msg.launcher, int(content.time_started), self._get_time_limit_estimate(content.msg)))
 
         #jobs_waiting: a list of tuples in the form

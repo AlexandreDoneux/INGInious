@@ -286,7 +286,7 @@ class WebAppSubmissionManager:
                                      (lambda result, grade, problems, tests, custom, state, archive, stdout, stderr:
                                       self._job_done_callback(submissionid, course, task, result, grade, problems, tests,
                                                               custom, state, archive, stdout, stderr, task_dispenser, True)),
-                                     "Frontend - {}".format(username), debug, ssh_callback)
+                                     None, "Frontend - {}".format(username), debug, ssh_callback)
 
         # Submission may already have been modified by callback,
         Submission.objects(id=submissionid).update(jobid=jobid)

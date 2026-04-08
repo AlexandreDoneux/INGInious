@@ -28,6 +28,7 @@ from inginious.frontend.pages.course_admin.utils import INGIniousAdminPage
 from inginious.common.base import load_json_or_yaml
 from inginious.frontend.courses import Course
 from inginious.frontend.models import Submission
+from inginious.client.client_sync import ClientSync
 
 """ A plugin that uses JPlag to detect similar code """
 
@@ -82,13 +83,16 @@ def get_submission_archive(submissions, archive_file):
     return archive_file
 
 
-def init(plugin_manager, config):
+def init(plugin_manager, client, config):
     """ Init the plugin """
 
     server = config.get('host')
     port = config.get('port')
     path = config.get('path')
     _logger = logging.getLogger("inginious.webapp.plugins.jplagselectpage")
+
+    # building jplag container
+
 
     class JPLAGSelectPage(INGIniousAdminPage):
 
@@ -119,39 +123,27 @@ def init(plugin_manager, config):
 
         def POST_AUTH(self, courseid, taskid):
             """ POST REQUEST """
-            list_of_sub_id = []
-            x = request.form
-            template_file = request.files['templateFile']
-            old_sub_file = request.files['archiveFile']
-            exclude_file = request.files['excludeFile']
-            for key in x:
-                value = x[key]
-                if value == "on" and key != 'nextyear' and key != 'addarchives':
-                    list_of_sub_id.append(key)
+           # for the moment try to run a basic job with a specific environment,
 
-            subs = [self.submission_manager.get_submission(x, False) for x in list_of_sub_id]
+            client_sync = ClientSync(client)
 
-            config = load_json_or_yaml("configuration.yaml") # TODO : change way to access task_directory, or even not use task_directory at all. We previously used the backup directory
-            archive = get_submission_archive(subs, open(config["tasks_directory"] + "/test.tar", "wb+")) # tester temporairement avec dossier de tâches
+            course = None
+            task = None
+            task_input = {'@attempts': '1', '@email': 'superadmin@inginious.org', '@lang': 'en', '@random': (), '@state': '', '@time': '2026-02-02 16:00:46.922800+00:00', '@username': 'superadmin', 'thecode': 'print("hey")'}
+            # task_input => inputdata :  contains user data, task data (attempts, submission time, random values, etc), and the code inputted by the user for the task
+            # use input_data as a way to pass parameters to the jplag ?
 
-            r = requests.post('http://' + server + ':' + str(port) + '/' + path,
-                              files={'sub.tar': archive,
-                                     'courseId': courseid,
-                                     'taskId': taskid,
-                                     'lang': x['selectLang'] if 'selectLang' in x else 'Python',
-                                     'template': template_file.read() if template_file is not None else '',
-                                     'archi': old_sub_file.read() if old_sub_file is not None else '',
-                                     'exclude': exclude_file.read() if exclude_file is not None else '',
-                                     'percentage': x['percentage'] if 'percentage' in x else 1,
-                                     'nyear': x['nextyear'] if 'nextyear' in x else "no",
-                                     'check_archives': x['addarchives'] if 'addarchives' in x else "no"})
-            if r.status_code == 200:
-                return render_template("jplag/templates/jplagresult.html", template_folder=PATH_TO_TEMPLATES,
-                                                   url=r.content.decode('UTF-8'))
-            else:
-                return r.content.decode('utf-8')
+            result, grade, problems, tests, custom, state, archive, stdout, stderr = client_sync.new_job(0, course,
+                                                                                                         task,
+                                                                                                         task_input,
+                                                                                                         "jplag",
+                                                                                                         "Plugin - JPLAG")
 
-            archive.close()
+            print(result)
+
+
+            # temporary render. Page will need to be made better
+            return render_template("jplag/templates/jplagresult.html", template_folder=PATH_TO_TEMPLATES,url="")
 
     plugin_manager.add_page("/jplag/<courseid>/<taskid>", JPLAGPage.as_view("jplagpage"))
     plugin_manager.add_page("/jplagselecttask/<courseid>/", JPLAGSelectPage.as_view("jplagselectpage"))
