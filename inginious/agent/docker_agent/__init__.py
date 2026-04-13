@@ -294,8 +294,12 @@ class DockerAgent(Agent):
         try:
             enable_network = message.environment_parameters.get("network_grading", False) or self._debugger
             limits = message.environment_parameters.get("limits", {})
-            time_limit = int(limits.get("time", 30))
-            hard_time_limit = int(limits.get("hard_time", None) or time_limit * 3)
+            if self._debugger:
+                time_limit = 30 * 60 # if debug, put time limits to 30 min.
+                hard_time_limit =  30 * 60
+            else:
+                time_limit = int(limits.get("time", 30))
+                hard_time_limit = int(limits.get("hard_time", None) or time_limit * 3)
             mem_limit = int(limits.get("memory", 200))
             run_cmd = message.environment_parameters.get("run_cmd", '')
         except:
