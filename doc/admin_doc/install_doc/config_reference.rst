@@ -53,6 +53,9 @@ The different entries are :
     ``tmp_dir``
         A directory whose absolute path must be available by the docker daemon and INGInious at the same time. By default, it is ``./agent_tmp``.
 
+    ``tmp_dir``
+        Indicates if container debugging is enabled. It is available only for Pycharm's debugging with a python debug server using port 5678. It is disabled by default.
+
 ``log_level``
     Can be set to ``INFO``, ``WARN``, or ``DEBUG``. Specifies the logging verbosity.
 

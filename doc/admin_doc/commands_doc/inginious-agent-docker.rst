@@ -37,6 +37,10 @@ INGInious to use a local backend, it is automatically run by ``inginious-webapp`
 
    Range of port for job remote debugging. By default it is 64120-64130
 
+.. option:: --debugger
+
+   Enables container debug through IDE. Only supports Pycharm's debugging for the moment by using a python debug server using port 5678.
+
 .. option:: --tmpdir TMPDIR
 
    Path to a directory where the agent can store information,
