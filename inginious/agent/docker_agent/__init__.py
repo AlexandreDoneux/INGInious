@@ -294,12 +294,8 @@ class DockerAgent(Agent):
         try:
             enable_network = message.environment_parameters.get("network_grading", False) or self._debugger
             limits = message.environment_parameters.get("limits", {})
-            if self._debugger:
-                time_limit = 30 * 60 # if debug, put time limits to 30 min.
-                hard_time_limit =  30 * 60
-            else:
-                time_limit = int(limits.get("time", 30))
-                hard_time_limit = int(limits.get("hard_time", None) or time_limit * 3)
+            time_limit = int(limits.get("time", 30))
+            hard_time_limit = int(limits.get("hard_time", None) or time_limit * 3)
             mem_limit = int(limits.get("memory", 200))
             run_cmd = message.environment_parameters.get("run_cmd", '')
         except:
@@ -338,7 +334,7 @@ class DockerAgent(Agent):
             ports_needed.append(22)
 
         ports = {}
-        if len(ports_needed) > 0:  # if ssh_debug, put time limits to 30 min.
+        if len(ports_needed) > 0 or self._debugger:  # if ssh_debug or container debug, put time limits to 30 min.
             time_limit = 30 * 60
             hard_time_limit = 30 * 60
         for p in ports_needed:
