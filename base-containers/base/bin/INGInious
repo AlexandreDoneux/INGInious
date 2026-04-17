@@ -35,7 +35,6 @@ if os.environ["DEBUGGER"] == "True":
             suspend=False
         )
     except Exception as e:
-        print("Failed to connect to pycharm debugger: {}".format(e))
         debug_server_unavailable = True
 
 

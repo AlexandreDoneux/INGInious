@@ -1,4 +1,4 @@
-Debugging tasks
+-Debugging tasks
 ===============
 
 There are different ways to get more insight on what's going wrong with your tasks in case
@@ -43,7 +43,8 @@ choice than running the script in a subshell to observe the state of variables a
 Container debugging through an IDE
 ------------------------------
 INGInious also supports container debugging through an IDE. This is currently only supported for the INGInious
-script and other scripts/APIs in the container by using Pycharm's debugging. You need to create a python debug server
-in Pycharm using the port 5678.
+script and other scripts/APIs in the container by using Pycharm's debugging. You need to create a *Python Debug Server*
+in Pycharm Run/Debug configurations, listening on port 5678, and add one or several *Path Mapping* between the local 
+and remote files to enable checkpoints.
 To enable this feature, you need to start the agent with the ``--debugger`` option or start the webapp with the
 ``debugger`` config in your configuration.yaml.
