@@ -20,6 +20,22 @@ import asyncio
 import struct
 import zmq
 import zmq.asyncio
+import pydevd_pycharm
+
+
+debug_server_unavailable = False
+if os.environ["DEBUGGER"] == "True":
+    print("Starting in debug mode, waiting for pycharm to connect...")
+    try:
+        pydevd_pycharm.settrace(
+            'host.docker.internal',
+            port=5678,
+            stdout_to_server=True,
+            stderr_to_server=True,
+            suspend=False
+        )
+    except Exception as e:
+        debug_server_unavailable = True
 
 
 ELF_MAGIC = b"\x7F\x45\x4C\x46"
@@ -394,6 +410,9 @@ class INGIniousMainRunner:
                 inginious_container_api.feedback.set_global_result('crash')
                 inginious_container_api.feedback.set_global_feedback('[SSH Debug] Nobody connected to the SSH server.')
             stdout, stderr = b"", b""
+
+        if os.environ["DEBUGGER"] and debug_server_unavailable:
+            stderr += b"[DEBUG] WARNING : Debug server was unavailable.\n"
 
         # Produce feedback
         feedback = inginious_container_api.feedback.get_feedback()

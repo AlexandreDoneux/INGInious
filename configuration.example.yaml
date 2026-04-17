@@ -19,6 +19,7 @@ local-config:
     # debug_host: localhost  # host that will be indicated to users when they want to use the task remote debug feature. Automatically guessed by
                              # default
     debug_ports: 64000-64100 #port range use for remote debug feature
+    debugger: true # for IDE debugging, uses port 5678
 
 # MongoDB options
 mongo_opt:

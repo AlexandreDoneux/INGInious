@@ -39,3 +39,12 @@ Debugging bash scripts (run.sh)
 As opposed to python scripts, INGInious functions are exposed through the
 environment so there is no need to use a particular loader. ``source run.sh`` might be a better
 choice than running the script in a subshell to observe the state of variables after execution.
+
+Container debugging through an IDE
+------------------------------
+INGInious also supports container debugging through an IDE. This is currently only supported for the INGInious
+script and other scripts/APIs in the container by using Pycharm's debugging. You need to create a *Python Debug Server*
+in Pycharm Run/Debug configurations, listening on port 5678, and add one or several *Path Mapping* between the local 
+and remote files to enable checkpoints.
+To enable this feature, you need to start the agent with the ``--debugger`` option or start the webapp with the
+``debugger`` config in your configuration.yaml.

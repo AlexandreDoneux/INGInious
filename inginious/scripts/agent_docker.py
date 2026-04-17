@@ -82,6 +82,8 @@ def main():
     parser.add_argument("--debug-host", help="Host used for job remote debugging. Should be an IP or an hostname. If not filled in, "
                                              "it will be automatically guessed", default=None, type=str)
     parser.add_argument("--debug-ports", help="Range of port for job remote debugging. By default it is 64120-64130", type=check_range, default="64120-64130")
+    parser.add_argument("--debugger", help="Enables container debug through IDE. Only supports Pycharm's debugging for the moment by using a python debug server using port 5678.",
+                        action="store_true")
     parser.add_argument("--tmpdir", help="Path to a directory where the agent can store information, such as caches. Defaults to ./agent_data",
                         default="./agent_data")
     parser.add_argument("--concurrency", help="Maximal number of jobs that can run concurrently on this agent. By default, it is the two times the "
@@ -125,7 +127,7 @@ def main():
 
         # Create agent
         agent = DockerAgent(context, args.backend, args.friendly_name, args.concurrency,
-                            address_host=args.debug_host, external_ports=args.debug_ports, tmp_dir=args.tmpdir,
+                            address_host=args.debug_host, external_ports=args.debug_ports, debugger=args.debugger, tmp_dir=args.tmpdir,
                             runtimes=args.runtime, ssh_allowed=args.ssh)
 
         # Run!
