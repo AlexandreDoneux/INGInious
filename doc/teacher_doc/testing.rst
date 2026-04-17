@@ -1,4 +1,4 @@
--Debugging tasks
+Debugging tasks
 ===============
 
 There are different ways to get more insight on what's going wrong with your tasks in case
