@@ -284,6 +284,7 @@ class DockerAgent(Agent):
 
     def __new_job_sync(self, message: BackendNewJob, future_results):
         """ Synchronous part of _new_job. Creates needed directories, copy files, and starts the container. """
+
         course_id = message.course_id
         task_id = message.task_id
 
@@ -297,31 +298,40 @@ class DockerAgent(Agent):
             time_limit = int(limits.get("time", 30))
             hard_time_limit = int(limits.get("hard_time", None) or time_limit * 3)
             mem_limit = int(limits.get("memory", 200))
-            run_cmd = message.environment_parameters.get("run_cmd", '')
+            #run_cmd = message.environment_parameters.get("run_cmd", '') # changed from empty string to None somewhere for course tasks
+            run_cmd = message.environment_parameters.get("run_cmd", None) # when set to None, the run_cmd does not exist in the data received by the container
         except:
             raise CannotCreateJobException('The agent is unable to parse the parameters')
 
-        course_fs = self._fs.from_subfolder(course_id)
-        task_fs = course_fs.from_subfolder(task_id)
+        if message.course_id and message.task_id:
+            course_fs = self._fs.from_subfolder(course_id)
+            task_fs = course_fs.from_subfolder(task_id)
 
-        if not course_fs.exists() or not task_fs.exists():
-            self._logger.warning("Task %s/%s unavailable on this agent", course_id, task_id)
-            raise CannotCreateJobException(
-                'Task unavailable on agent. Please retry later, the agents should synchronize soon. '
-                'If the error persists, please contact your course administrator.')
+            if not course_fs.exists() or not task_fs.exists():
+                self._logger.warning("Task %s/%s unavailable on this agent", course_id, task_id)
+                raise CannotCreateJobException(
+                    'Task unavailable on agent. Please retry later, the agents should synchronize soon. '
+                    'If the error persists, please contact your course administrator.')
 
         # Check for realistic memory limit value
         if mem_limit < 20:
             mem_limit = 20
         elif mem_limit > self._max_memory_per_slot:
-            self._logger.warning("Task %s/%s ask for too much memory (%dMB)! Available: %dMB", course_id, task_id,
+            if message.course_id and message.task_id:
+                self._logger.warning("Task %s/%s asks for too much memory (%dMB)! Available: %dMB", course_id, task_id,
                                  mem_limit, self._max_memory_per_slot)
+            else:
+                self._logger.warning("A job asks for too much memory (%dMB)! Available: %dMB", mem_limit,
+                                     self._max_memory_per_slot)
             raise CannotCreateJobException(
                 'Not enough memory on agent (available: %dMB). Please contact your course administrator.' % self._max_memory_per_slot)
 
         if environment_type not in self._containers or environment_name not in self._containers[environment_type]:
-            self._logger.warning("Task %s/%s ask for an unknown environment %s/%s", course_id, task_id,
+            if message.course_id and message.task_id:
+                self._logger.warning("Task %s/%s asks for an unknown environment %s/%s", course_id, task_id,
                                  environment_type, environment_name)
+            else:
+                self._logger.warning("A job asks for an unknown environment %s/%s", environment_type, environment_name)
             raise CannotCreateJobException('Unknown container. Please contact your course administrator.')
 
         environment = self._containers[environment_type][environment_name]["id"]
@@ -368,24 +378,28 @@ class DockerAgent(Agent):
         os.chmod(sockets_path, 0o777)
         os.mkdir(course_path)
 
-        # TODO: avoid copy
-        task_fs.copy_from(None, task_path)
-        os.chmod(task_path, 0o777)
+        if message.course_id and message.task_id:
+            # TODO: avoid copy
+            task_fs.copy_from(None, task_path)
+            os.chmod(task_path, 0o777)
 
-        if not os.path.exists(student_path):
-            os.mkdir(student_path)
-            os.chmod(student_path, 0o777)
+            if not os.path.exists(student_path):
+                os.mkdir(student_path)
+                os.chmod(student_path, 0o777)
 
-        # Copy common and common/student if needed
-        # TODO: avoid copy
-        if course_fs.from_subfolder("$common").exists():
-            course_fs.from_subfolder("$common").copy_from(None, course_common_path)
+            # Copy common and common/student if needed
+            # TODO: avoid copy
+            if course_fs.from_subfolder("$common").exists():
+                course_fs.from_subfolder("$common").copy_from(None, course_common_path)
+            else:
+                os.mkdir(course_common_path)
+
+            if course_fs.from_subfolder("$common").from_subfolder("student").exists():
+                course_fs.from_subfolder("$common").from_subfolder("student").copy_from(None, course_common_student_path)
+            else:
+                os.mkdir(course_common_student_path)
         else:
             os.mkdir(course_common_path)
-
-        if course_fs.from_subfolder("$common").from_subfolder("student").exists():
-            course_fs.from_subfolder("$common").from_subfolder("student").copy_from(None, course_common_student_path)
-        else:
             os.mkdir(course_common_student_path)
 
         # Run the container
@@ -859,7 +873,7 @@ class DockerAgent(Agent):
                     except:
                         pass  # ignore
 
-                self._create_safe_task(close_and_delete(student_container_id_loop))
+                # self._create_safe_task(close_and_delete(student_container_id_loop))
 
             # Allow other container to reuse the external ports this container has finished to use
             for p in info.assigned_external_ports:
@@ -882,6 +896,7 @@ class DockerAgent(Agent):
             archive = None
             state = info.inputdata.get("@state", "")  # init state to previous state
 
+            killed = None
             if killed is not None:
                 result = killed
 
@@ -901,7 +916,8 @@ class DockerAgent(Agent):
                     keys_fct = {"problems": id_checker, "custom": id_checker, "tests": id_checker_tests}
 
                     # Check dict content
-                    for key, item in return_value.items():
+                    for key, item in return_value.items(): #return value is None
+                        # container logs : crash, An error occured while running the grading script. It is possible that it is non-executable or made a timeout
                         if not isinstance(item, accepted_types[key]):
                             raise Exception("Feedback file is badly formatted.")
                         elif accepted_types[key] == dict and key != "custom":  # custom can contain anything:
@@ -938,7 +954,8 @@ class DockerAgent(Agent):
 
             # Remove container
             try:
-                await self._docker.remove_container(container_id)
+                #await self._docker.remove_container(container_id)
+                pass
             except asyncio.CancelledError:
                 raise
             except:
