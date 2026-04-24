@@ -10,11 +10,24 @@ LABEL org.opencontainers.image.description="Single test JPLAG job environment"
 
 LABEL org.inginious.grading.name="jplag"
 
-#RUN /bin/sh -c pip3.8 install debugpy pydevd-pycharm~=253.30387.127 # does not work ...
-#RUN python3 -m pip install debugpy pydevd-pycharm~=253.30387.127
 
-# Force stdin, stdout and stderr to be totally unbuffered
-ENV PYTHONUNBUFFERED=1
+# Install Java SE 21
+RUN dnf clean metadata && \
+    dnf -y upgrade && \
+    dnf -y install java-21-openjdk-headless
 
-COPY run /course/run
-RUN chmod +x /course/run
+
+# JPLAG 6.2.0, last version compatible with java 21
+ENV JPLAG_VERSION=6.2.0
+ENV JPLAG_JAR=/opt/jplag/jplag-${JPLAG_VERSION}-jar-with-dependencies.jar
+
+RUN mkdir -p /opt/jplag && \
+    curl -L -o "${JPLAG_JAR}" \
+    "https://github.com/jplag/JPlag/releases/download/v${JPLAG_VERSION}/jplag-${JPLAG_VERSION}-jar-with-dependencies.jar"
+
+
+# Create required directories for jplag
+RUN mkdir -p soumissions static/result templates
+
+
+COPY run.py /course/run.py
