@@ -298,12 +298,11 @@ class DockerAgent(Agent):
             time_limit = int(limits.get("time", 30))
             hard_time_limit = int(limits.get("hard_time", None) or time_limit * 3)
             mem_limit = int(limits.get("memory", 200))
-            #run_cmd = message.environment_parameters.get("run_cmd", '') # changed from empty string to None somewhere for course tasks
-            run_cmd = message.environment_parameters.get("run_cmd", None) # when set to None, the run_cmd does not exist in the data received by the container
+            run_cmd = message.environment_parameters.get("run_cmd", None)
         except:
             raise CannotCreateJobException('The agent is unable to parse the parameters')
 
-        if message.course_id and message.task_id:
+        if course_id and task_id:
             course_fs = self._fs.from_subfolder(course_id)
             task_fs = course_fs.from_subfolder(task_id)
 
@@ -317,7 +316,7 @@ class DockerAgent(Agent):
         if mem_limit < 20:
             mem_limit = 20
         elif mem_limit > self._max_memory_per_slot:
-            if message.course_id and message.task_id:
+            if course_id and task_id:
                 self._logger.warning("Task %s/%s asks for too much memory (%dMB)! Available: %dMB", course_id, task_id,
                                  mem_limit, self._max_memory_per_slot)
             else:
@@ -327,7 +326,7 @@ class DockerAgent(Agent):
                 'Not enough memory on agent (available: %dMB). Please contact your course administrator.' % self._max_memory_per_slot)
 
         if environment_type not in self._containers or environment_name not in self._containers[environment_type]:
-            if message.course_id and message.task_id:
+            if course_id and task_id:
                 self._logger.warning("Task %s/%s asks for an unknown environment %s/%s", course_id, task_id,
                                  environment_type, environment_name)
             else:
@@ -378,7 +377,7 @@ class DockerAgent(Agent):
         os.chmod(sockets_path, 0o777)
         os.mkdir(course_path)
 
-        if message.course_id and message.task_id:
+        if course_id and task_id:
             # TODO: avoid copy
             task_fs.copy_from(None, task_path)
             os.chmod(task_path, 0o777)
@@ -873,7 +872,7 @@ class DockerAgent(Agent):
                     except:
                         pass  # ignore
 
-                # self._create_safe_task(close_and_delete(student_container_id_loop))
+                self._create_safe_task(close_and_delete(student_container_id_loop))
 
             # Allow other container to reuse the external ports this container has finished to use
             for p in info.assigned_external_ports:
@@ -896,7 +895,6 @@ class DockerAgent(Agent):
             archive = None
             state = info.inputdata.get("@state", "")  # init state to previous state
 
-            killed = None
             if killed is not None:
                 result = killed
 
@@ -916,8 +914,7 @@ class DockerAgent(Agent):
                     keys_fct = {"problems": id_checker, "custom": id_checker, "tests": id_checker_tests}
 
                     # Check dict content
-                    for key, item in return_value.items(): #return value is None
-                        # container logs : crash, An error occured while running the grading script. It is possible that it is non-executable or made a timeout
+                    for key, item in return_value.items():
                         if not isinstance(item, accepted_types[key]):
                             raise Exception("Feedback file is badly formatted.")
                         elif accepted_types[key] == dict and key != "custom":  # custom can contain anything:
@@ -954,8 +951,7 @@ class DockerAgent(Agent):
 
             # Remove container
             try:
-                #await self._docker.remove_container(container_id)
-                pass
+                await self._docker.remove_container(container_id)
             except asyncio.CancelledError:
                 raise
             except:
