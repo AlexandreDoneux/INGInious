@@ -299,30 +299,6 @@ class WebAppSubmissionManager:
         return submissionid, to_remove
 
 
-    def add_unique_job(self, environment, inputdata, callback, debug=False):
-        """
-        Add a job not linked to a course or task in the queue and returns a job id.
-        :param environment: the environment in which the job should be run.
-        :type environment: str
-        :param inputdata: the input as a dictionary
-        :type inputdata: dict
-        :param callback: the callback to call when the job is done.
-        :type callback: function
-        :param debug: If debug is true, more debug data will be saved
-        :type debug: bool or string
-        :returns: the new submission id and the removed submission id
-        """
-
-        job_info = {"course": None, "task": None, "environment_type": "unique_job", "environment": environment}
-
-        jobid = self._client.new_job(0, job_info, inputdata,
-                                     (callback()), "Frontend - {} job".format(environment), debug)
-
-        self._logger.info("New unique job submission from %s environment - %s", environment, flask.request.remote_addr)
-
-        return jobid
-
-
     def _delete_exceeding_submissions(self, username, course, task, task_dispenser):
         """ Deletes exceeding submissions from the database, to keep the database relatively small """
         max_submissions = task_dispenser.get_no_stored_submissions(task.get_id())
