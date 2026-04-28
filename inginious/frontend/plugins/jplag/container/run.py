@@ -12,6 +12,7 @@ extractfolder = "test"
 
 try:
     subprocess.call(['java', '-jar', java_jar, extractfolder])
+    print("Jplag executed successfully")
 except Exception as e:
     print("Error while running jplag: {}".format(e))
 
