@@ -5,29 +5,28 @@ import zipfile
 
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
-# JAVA_JAR        : path to the jplag jar file (required)
-# ZIP_PATH        : path to the input zip file containing the submissions zip (required)
-# SUBMISSIONS_DIR : path to the directory where the submissions will be extracted
-# RESULT_FILE     : path to the JPlag result file (without extension, JPlag will add .jplag)
-# BASE_CODE_DIR   : path to the directory containing the base code (optional, only if you want to use
+#
+#   ZIP_PATH        : path to the input zip file containing the submissions zip (required)
+#   SUBMISSIONS_DIR : path to the directory where the submissions will be extracted
+#   RESULT_FILE     : path to the JPlag result file (without extension, JPlag will add .jplag)
+#   BASE_CODE_DIR   : path to the directory containing the base code (optional, only if you want to use
 
-JAVA_JAR        = os.environ["JPLAG_JAR"]
 ZIP_PATH        = "/jplag/input/submissions.zip"
 SUBMISSIONS_DIR = "/jplag/submissions"
 RESULT_FILE      = "/jplag/result/results.jplag"
-BASE_CODE_DIR   = "/jplag/basecode" # needs to be in the same dir path as the submissions (/jplag/submissions/basecode) ?
+BASE_CODE_DIR   = "/jplag/basecode"
 
 
 # ─── Configuration (environment variables) ────────────────────────────────────
 #
+#   JAVA_JAR        : path to the jplag jar file (required)
 #   JPLAG_LANGUAGE            : e.g. java, python3, cpp, typescript (default: java)
 #   JPLAG_SIMILARITY_THRESHOLD: minimum similarity to store -m (default: 0.0)
 #   JPLAG_SUBDIRECTORY        : scan only this subdir inside each submission (optional)
 
-
+JAVA_JAR        = os.environ["JPLAG_JAR"]
 LANGUAGE      = os.environ.get("JPLAG_LANGUAGE")
 SIM_THRESHOLD = os.environ.get("JPLAG_SIMILARITY_THRESHOLD")
-SUBDIRECTORY  = os.environ.get("JPLAG_SUBDIRECTORY") # need to handle correctly subdirectories. Do we allow them ?
 
 
 # ─── 1. Extract the submissions zip ───────────────────────────────────────────
@@ -81,8 +80,8 @@ cmd = [
 
 if SIM_THRESHOLD:
     cmd += ["-m", SIM_THRESHOLD]
-if SUBDIRECTORY:
-    cmd += ["-s", SUBDIRECTORY]
+if os.path.isdir(BASE_CODE_DIR):
+    cmd += ["-b", BASE_CODE_DIR]
 
 cmd.append(SUBMISSIONS_DIR)
 
