@@ -137,9 +137,12 @@ def init(plugin_manager, client, config):
                                                                                                          task,
                                                                                                          task_input,
                                                                                                          "jplag",
-                                                                                                         "Plugin - JPLAG")
+                                                                                                         "Plugin - JPLAG",
+                                                                                                         debug=True)
 
             print(result)
+            print(stdout)
+            print(stderr)
 
 
             # temporary render. Page will need to be made better
