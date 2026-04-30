@@ -1,5 +1,10 @@
 # DOCKER-VERSION 1.1.0
 
+# Environment variables for the JPLAG environment
+# JPLAG_LANGUAGE (required) : The programming language to be used for the plagiarism detection. Supported values are available at https://github.com/jplag/JPlag. Be aware of the version used.
+# SIM_THRESHOLD : The similarity threshold for the plagiarism detection. Default is 0 (0% similarity).
+
+
 ARG   VERSION=latest
 ARG   REGISTRY=ghcr.io
 FROM  ${REGISTRY}/inginious/env-base:${VERSION}
@@ -26,10 +31,6 @@ RUN mkdir -p /opt/jplag && \
 
 RUN mkdir -p /jplag/input /jplag/submissions /jplag/result /jplag/basecode && \
     chmod -R 777 /jplag
-
-# Default language for the moment; override at runtime with -e JPLAG_LANGUAGE=...
-ENV JPLAG_LANGUAGE=python3
-ENV JPLAG_SUBMISSIONS_ZIP=/jplag/input/submissions.zip
 
 
 COPY run.py /course/run.py
