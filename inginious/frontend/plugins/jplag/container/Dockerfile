@@ -4,14 +4,8 @@
 # Create a .zip file containing one directory per student, each containing the student's submission. The .zip file should be named "submissions.zip".
 # Then, run the container with the following command :
 #
-#docker run -v "$(pwd)/test_submissions.zip":/jplag/input/submissions.zip -e JPLAG_LANGUAGE=python3 --entrypoint python3 jplag:latest
-# -c "
-# import sys
-# from unittest.mock import MagicMock
-# sys.modules['inginious_container_api'] = MagicMock()
-# sys.modules['inginious_container_api.feedback'] = MagicMock()
-# exec(open('/course/run.py').read())
-# "
+# docker run  -v "$(pwd)/test_submissions.zip":/jplag/input/submissions.zip -e JPLAG_LANGUAGE=python3
+# --entrypoint /bin/bash  jplag:latest  -c "python3 /course/run.py"
 #
 # The mock is necessary to avoid import errors, as the container expects to be run in an INGInious environment.
 
