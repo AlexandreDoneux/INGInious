@@ -11,8 +11,10 @@ import gettext
 import re
 import os
 import logging
-from typing import Iterable, List, Any
+from typing import List, Any
 from datetime import datetime
+from pydantic import BaseModel, Field, field_validator, model_validator, ValidationError, ConfigDict
+from typing import Optional, Literal
 
 from inginious.common.filesystems import FileSystemProvider, fetch_or_cache, invalidate_cache, get_fs_provider
 from inginious.common.tags import Tag
@@ -37,70 +39,128 @@ def _load_course(course_fs : FileSystemProvider, courseid : str):
 
     return Course(courseid, task_content)
 
+
+class CourseDescriptor(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True) # to allow AccessibleTime() objects in the model
+
+    # TODO : use strict validation ? -> no automatic strict conversion of types, we will need the archive_date validator
+
+    name: str
+    admins: list[str] = []
+    tutors: list[str] = []
+    description: str = ""
+    accessible: Optional[str | bool | AccessibleTime] = None # TODO : avoid AccessibleTime instance in the descriptor ?
+    registration: Optional[str | bool | AccessibleTime] = None
+    registration_password: Optional[str] = None
+    registration_ac: Optional[Literal["username", "binding", "email"]] = None
+    registration_ac_accept: bool = True
+    registration_ac_list: list[str] = []
+    groups_student_choice: bool = False
+    allow_unregister: bool = True
+    allow_preview: bool = False
+    is_lti: bool = False
+    archived: bool = False
+    archive_date: Optional[datetime] = Field( # using datetime type to allow automatic parsing of ISO-8601 strings + accept parsed value by validator
+        default=None,
+        description="ISO-8601 date/time string",
+    )
+    lti_url: str = ""
+    lti_keys: dict = {}
+    lti_config: dict = {}
+    lti_secrets: dict = {}
+    lti_send_back_grade: bool = False
+    tags: dict = {}
+    task_dispenser: str = "toc"
+    dispenser_data: dict = {}
+    nofrontend: bool = False
+
+    # Force some parameters if LTI is active
+    @model_validator(mode="after")
+    def apply_lti_overrides(self):
+        if self.is_lti:
+            self.accessible = True
+            self.registration = False
+            self.registration_password = None
+            self.registration_ac = None
+            self.registration_ac_list = []
+            self.groups_student_choice = False
+            self.allow_unregister = False
+        else:
+            self.lti_keys, self.lti_secrets, self.lti_config = {}, {}, {}
+            self.lti_url = ""
+            self.lti_send_back_grade = False
+        return self
+
+    # check task dispenser is valid
+    @field_validator("task_dispenser", mode="after")
+    @classmethod
+    def check_task_dispenser_registered(cls, task_dispenser: str) -> str:
+        available_task_dispensers = get_task_dispensers()
+        if task_dispenser not in available_task_dispensers:
+            raise ValueError(
+                f"Unknown task dispenser '{task_dispenser}'. Registered dispensers: {sorted(available_task_dispensers.keys())}"
+            )
+        return task_dispenser
+
+    # check AccessibleTime() format
+    @model_validator(mode="after")
+    def verify_accessible_time(self):
+        try:
+            self.accessible = AccessibleTime(self.accessible)
+            self.registration = AccessibleTime(self.registration)
+        except Exception as e:
+            raise ValueError(f"Invalid accessible or registration time format: {e}")
+        return self
+
+
 class Course(object):
     """ A course with some modification for users """
 
     def __init__(self, courseid, content):
         self._id = courseid
-        self._content = content
+        try:
+            self._content = CourseDescriptor(**content)
+        except ValidationError as e:
+            raise Exception(f"Course has an invalid YAML spec: {courseid}. Validation error: {e}")
+
         self._fs = get_fs_provider().from_subfolder(courseid)
         self._new_doc = not self._fs.exists()
 
         self._translations = {}
 
-        try:
-            self._name = self._content['name']
-        except:
-            raise Exception("Course has an invalid name: " + self.get_id())
+        self._name = self._content.name
 
-        if self._content.get('nofrontend', False):
+        if self._content.nofrontend:
             raise Exception("That course is not allowed to be displayed directly in the webapp")
 
-        try:
-            self._admins = self._content.get('admins', [])
-            self._tutors = self._content.get('tutors', [])
-            self._description = self._content.get('description', '')
-            self._accessible = AccessibleTime(self._content.get("accessible", None))
-            self._registration = AccessibleTime(self._content.get("registration", None))
-            self._registration_password = self._content.get('registration_password', None)
-            self._registration_ac = self._content.get('registration_ac', None)
-            if self._registration_ac not in [None, "username", "binding", "email"]:
-                raise Exception("Course has an invalid value for registration_ac: " + self.get_id())
-            self._registration_ac_accept = self._content.get('registration_ac_accept', True)
-            self._registration_ac_list = self._content.get('registration_ac_list', [])
-            self._groups_student_choice = self._content.get("groups_student_choice", False)
-            self._allow_unregister = self._content.get('allow_unregister', True)
-            self._allow_preview = self._content.get('allow_preview', False)
-            self._is_lti = self._content.get('is_lti', False)
-            self._is_archive = self._content.get('archived', False)
-            self._archive_date = datetime.fromisoformat(self._content["archive_date"]).astimezone() if "archive_date" in self._content else None
-            self._lti_url = self._content.get('lti_url', '')
-            self._lti_keys = self._content.get('lti_keys', {})
-            self._lti_config = self._content.get('lti_config', {})
-            self._lti_secrets = self._content.get('lti_secrets', {})
-            self._lti_send_back_grade = self._content.get('lti_send_back_grade', False)
-            self._tags = {key: Tag(key, tag_dict, self.gettext) for key, tag_dict in self._content.get("tags", {}).items()}
-            task_dispenser_class = get_task_dispensers().get(self._content.get('task_dispenser', 'toc'), TableOfContents)
-            # Here we use a lambda to ensure we do not pass a fixed list of tasks to the task dispenser
-            self._task_dispenser = task_dispenser_class(lambda: self.get_tasks(), self._content.get("dispenser_data", {}), self.get_id())
-        except:
-            raise Exception("Course has an invalid YAML spec: " + self.get_id())
+        self._admins = self._content.admins
+        self._tutors = self._content.tutors
+        self._description = self._content.description
+        self._accessible = self._content.accessible
+        self._registration = self._content.registration
+        self._registration_password = self._content.registration_password
+        self._registration_ac = self._content.registration_ac
+        self._registration_ac_accept = self._content.registration_ac_accept
+        self._registration_ac_list = self._content.registration_ac_list
+        self._groups_student_choice = self._content.groups_student_choice
+        self._allow_unregister = self._content.allow_unregister
+        self._allow_preview = self._content.allow_preview
+        self._is_lti = self._content.is_lti
+        self._is_archive = self._content.archived
+        self._archive_date = self._content.archive_date
+        self._lti_url = self._content.lti_url
+        self._lti_keys = self._content.lti_keys
+        self._lti_config = self._content.lti_config
+        self._lti_secrets = self._content.lti_secrets
+        self._lti_send_back_grade = self._content.lti_send_back_grade
+        self._tags = {key: Tag(key, tag_dict, self.gettext) for key, tag_dict in self._content.tags.items()}
 
-        # Force some parameters if LTI is active
-        if self.is_lti():
-            self._accessible = AccessibleTime(True)
-            self._registration = AccessibleTime(False)
-            self._registration_password = None
-            self._registration_ac = None
-            self._registration_ac_list = []
-            self._groups_student_choice = False
-            self._allow_unregister = False
-        else:
-            self._lti_keys = {}
-            self._lti_secrets = {}
-            self._lti_config = {}
-            self._lti_url = ''
-            self._lti_send_back_grade = False
+        try:
+            task_dispenser_class = get_task_dispensers().get(self._content.task_dispenser, TableOfContents)
+            # Here we use a lambda to ensure we do not pass a fixed list of tasks to the task dispenser
+            self._task_dispenser = task_dispenser_class(lambda: self.get_tasks(), self._content.dispenser_data, self.get_id())
+        except Exception as e:
+            raise Exception("Course has an invalid task dispenser: " + self.get_id() + ". Error: " + str(e))
 
         # Build the regex for the ACL, allowing for fast matching. Only used internally.
         self._registration_ac_regex = self._build_ac_regex(self._registration_ac_list)
@@ -127,8 +187,10 @@ class Course(object):
         return Task.get(self._id, taskid)
 
     def get_descriptor(self):
-        """ Get (a copy) the description of the course """
-        return copy.deepcopy(self._content)
+        """ Get (a copy) the description of the course """ # change comment to say that it returns a dict instead of a copy of the CourseDescriptor object
+        #return copy.deepcopy(self._content)
+        return self._content.model_dump(exclude_none=False) # python mode to accept non-json-serializables (AccessibleTime, ...)
+
 
     def get_staff(self):
         """ Returns a list containing the usernames of all the staff users """
@@ -291,7 +353,8 @@ class Course(object):
 
     def save(self):
         """ Saves the Course into the filesystem """
-        self._fs.put("course.yaml", get_json_or_yaml("course.yaml", self._content))
+        #self._fs.put("course.yaml", get_json_or_yaml("course.yaml", self._content))
+        self._fs.put("course.yaml", get_json_or_yaml("course.yaml",  self._content.model_dump()))
         if self._new_doc:
             logging.getLogger("inginious.course").info("Course %s created in the factory.", self._fs.prefix)
 
