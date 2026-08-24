@@ -12,10 +12,11 @@ from collections import OrderedDict
 from datetime import datetime
 
 from flask import  session, redirect, Response, url_for
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import Forbidden, NotFound
 from bson.objectid import ObjectId
 
 from inginious.common.base import id_checker
+from inginious.common.exceptions import CourseUnreadableException
 from inginious.frontend.courses import Course
 from inginious.frontend.pages.utils import INGIniousAuthPage
 from inginious.frontend.models import UserTask, Audience
@@ -48,7 +49,9 @@ class INGIniousAdminPage(INGIniousAuthPage):
                 return course, None
             else:
                 return course, course.get_task(taskid)
-        except:
+        except CourseUnreadableException as e:
+            raise NotFound(description=_(e))
+        except Exception as e:
             raise Forbidden(description=_("This course is unreachable"))
 
 

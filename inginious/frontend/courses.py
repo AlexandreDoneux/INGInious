@@ -43,8 +43,6 @@ def _load_course(course_fs : FileSystemProvider, courseid : str):
 class CourseDescriptor(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True) # to allow AccessibleTime() objects in the model
 
-    # TODO : use strict validation ? -> no automatic strict conversion of types, we will need the archive_date validator
-
     name: str
     admins: list[str] = []
     tutors: list[str] = []
@@ -109,7 +107,7 @@ class CourseDescriptor(BaseModel):
             self.accessible = AccessibleTime(self.accessible)
             self.registration = AccessibleTime(self.registration)
         except Exception as e:
-            raise ValueError(f"Invalid accessible or registration time format: {e}")
+            raise ValueError(f"Invalid time format for 'accessible' or 'registration': {e}")
         return self
 
 
@@ -118,10 +116,11 @@ class Course(object):
 
     def __init__(self, courseid, content):
         self._id = courseid
+        self._pre_validated_content = content
         try:
             self._content = CourseDescriptor(**content)
         except ValidationError as e:
-            raise Exception(f"Course has an invalid YAML spec: {courseid}. Validation error: {e}")
+            raise CourseUnreadableException(f"Course '{courseid}' has an invalid '{e.errors()[0]["loc"][0]}' YAML spec: {e.errors()[0]["msg"]}")
 
         self._fs = get_fs_provider().from_subfolder(courseid)
         self._new_doc = not self._fs.exists()
@@ -160,7 +159,7 @@ class Course(object):
             # Here we use a lambda to ensure we do not pass a fixed list of tasks to the task dispenser
             self._task_dispenser = task_dispenser_class(lambda: self.get_tasks(), self._content.dispenser_data, self.get_id())
         except Exception as e:
-            raise Exception("Course has an invalid task dispenser: " + self.get_id() + ". Error: " + str(e))
+            raise CourseUnreadableException(f"Course {self.get_id()} has an invalid task dispenser : {str(e)}")
 
         # Build the regex for the ACL, allowing for fast matching. Only used internally.
         self._registration_ac_regex = self._build_ac_regex(self._registration_ac_list)
@@ -187,9 +186,8 @@ class Course(object):
         return Task.get(self._id, taskid)
 
     def get_descriptor(self):
-        """ Get (a copy) the description of the course """ # change comment to say that it returns a dict instead of a copy of the CourseDescriptor object
-        #return copy.deepcopy(self._content)
-        return self._content.model_dump(exclude_none=False) # python mode to accept non-json-serializables (AccessibleTime, ...)
+        """ Get the description of the course as a python dict. """
+        return self._pre_validated_content # -> is this an alternative ? Needed ?
 
 
     def get_staff(self):
@@ -349,12 +347,11 @@ class Course(object):
         return self._archive_date
 
     def set_descriptor_element(self, key: str, value: Any):
-        self._content[key] = value
+        self._pre_validated_content[key] = value
 
     def save(self):
         """ Saves the Course into the filesystem """
-        #self._fs.put("course.yaml", get_json_or_yaml("course.yaml", self._content))
-        self._fs.put("course.yaml", get_json_or_yaml("course.yaml",  self._content.model_dump()))
+        self._fs.put("course.yaml", get_json_or_yaml("course.yaml", self._pre_validated_content))
         if self._new_doc:
             logging.getLogger("inginious.course").info("Course %s created in the factory.", self._fs.prefix)
 
