@@ -10,6 +10,7 @@ import csv
 import io
 from collections import OrderedDict
 from datetime import datetime
+import logging
 
 from flask import  session, redirect, Response, url_for
 from werkzeug.exceptions import Forbidden, NotFound
@@ -26,6 +27,8 @@ class INGIniousAdminPage(INGIniousAuthPage):
     """
     An improved version of INGIniousAuthPage that checks rights for the administration
     """
+
+    _logger = logging.getLogger("inginious.frontend.course_admin")
 
     def get_course_and_check_rights(self, courseid, taskid=None, allow_all_staff=True):
         """ Returns the course with id ``courseid`` and the task with id ``taskid``, and verify the rights of the user.
@@ -50,13 +53,17 @@ class INGIniousAdminPage(INGIniousAuthPage):
             else:
                 return course, course.get_task(taskid)
         except CourseUnreadableException as e:
-            raise NotFound(description=str(e))
-        except InvalidNameException as e:
-            raise NotFound(description=str(e))
-        except CourseNotFoundException:
+            self._logger.error(str(e))
             raise NotFound(description=_("Course not found."))
-        except:
-            raise NotFound(description=_("An error occurred while loading the course."))
+        except InvalidNameException as e:
+            self._logger.error(str(e))
+            raise NotFound(description=_("Course not found."))
+        except CourseNotFoundException:
+            self._logger.error(f"Course {courseid} not found.")
+            raise NotFound(description=_("Course not found."))
+        except Exception as e:
+            self._logger.error(f"Error while fetching course {courseid}: {str(e)}")
+            raise NotFound(description=_("Course not found."))
 
 
 class INGIniousSubmissionsAdminPage(INGIniousAdminPage):
