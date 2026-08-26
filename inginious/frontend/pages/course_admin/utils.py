@@ -16,7 +16,7 @@ from werkzeug.exceptions import Forbidden, NotFound
 from bson.objectid import ObjectId
 
 from inginious.common.base import id_checker
-from inginious.common.exceptions import CourseUnreadableException
+from inginious.common.exceptions import CourseUnreadableException, InvalidNameException, CourseNotFoundException
 from inginious.frontend.courses import Course
 from inginious.frontend.pages.utils import INGIniousAuthPage
 from inginious.frontend.models import UserTask, Audience
@@ -50,9 +50,13 @@ class INGIniousAdminPage(INGIniousAuthPage):
             else:
                 return course, course.get_task(taskid)
         except CourseUnreadableException as e:
-            raise NotFound(description=_(e))
-        except Exception as e:
-            raise Forbidden(description=_("This course is unreachable"))
+            raise NotFound(description=str(e))
+        except InvalidNameException as e:
+            raise NotFound(description=str(e))
+        except CourseNotFoundException:
+            raise NotFound(description=_("Course not found."))
+        except:
+            raise NotFound(description=_("An error occurred while loading the course."))
 
 
 class INGIniousSubmissionsAdminPage(INGIniousAdminPage):

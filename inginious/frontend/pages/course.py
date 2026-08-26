@@ -8,7 +8,7 @@ import flask
 from flask import session, redirect, render_template, url_for
 from werkzeug.exceptions import NotFound
 
-from inginious.common.exceptions import CourseUnreadableException
+from inginious.common.exceptions import CourseUnreadableException, InvalidNameException, CourseNotFoundException
 from inginious.frontend.courses import Course
 from inginious.frontend.pages.utils import INGIniousAuthPage
 from inginious.frontend.models import UserTask
@@ -35,8 +35,14 @@ class CoursePage(INGIniousAuthPage):
         """ Return the course """
         try:
             course = Course.get(courseid)
-        except ValueError as e:
-            raise CourseUnreadableException(str(e))
+        except CourseUnreadableException as e:
+            raise NotFound(description=str(e))
+        except InvalidNameException as e:
+            raise NotFound(description=str(e))
+        except CourseNotFoundException:
+            raise NotFound(description=_("Course not found."))
+        except:
+            raise NotFound(description=_("An error occurred while loading the course."))
 
         return course
 

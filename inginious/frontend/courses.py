@@ -47,7 +47,7 @@ class CourseDescriptor(BaseModel):
     admins: list[str] = []
     tutors: list[str] = []
     description: str = ""
-    accessible: Optional[str | bool | AccessibleTime] = None # TODO : avoid AccessibleTime instance in the descriptor ?
+    accessible: Optional[str | bool | AccessibleTime] = None
     registration: Optional[str | bool | AccessibleTime] = None
     registration_password: Optional[str] = None
     registration_ac: Optional[Literal["username", "binding", "email"]] = None
@@ -100,15 +100,22 @@ class CourseDescriptor(BaseModel):
             )
         return task_dispenser
 
-    # check AccessibleTime() format
-    @model_validator(mode="after")
-    def verify_accessible_time(self):
+    # check given accessible and registration values are valid
+    @field_validator("accessible", mode="after")
+    @classmethod
+    def verify_accessible(cls, v):
         try:
-            self.accessible = AccessibleTime(self.accessible)
-            self.registration = AccessibleTime(self.registration)
+            return AccessibleTime(v)
         except Exception as e:
-            raise ValueError(f"Invalid time format for 'accessible' or 'registration': {e}")
-        return self
+            raise ValueError(f"Invalid time format.")
+
+    @field_validator("registration", mode="after")
+    @classmethod
+    def verify_registration(cls, v):
+        try:
+            return AccessibleTime(v)
+        except Exception as e:
+            raise ValueError(f"Invalid time format.")
 
 
 class Course(object):
@@ -132,26 +139,6 @@ class Course(object):
         if self._content.nofrontend:
             raise Exception("That course is not allowed to be displayed directly in the webapp")
 
-        self._admins = self._content.admins
-        self._tutors = self._content.tutors
-        self._description = self._content.description
-        self._accessible = self._content.accessible
-        self._registration = self._content.registration
-        self._registration_password = self._content.registration_password
-        self._registration_ac = self._content.registration_ac
-        self._registration_ac_accept = self._content.registration_ac_accept
-        self._registration_ac_list = self._content.registration_ac_list
-        self._groups_student_choice = self._content.groups_student_choice
-        self._allow_unregister = self._content.allow_unregister
-        self._allow_preview = self._content.allow_preview
-        self._is_lti = self._content.is_lti
-        self._is_archive = self._content.archived
-        self._archive_date = self._content.archive_date
-        self._lti_url = self._content.lti_url
-        self._lti_keys = self._content.lti_keys
-        self._lti_config = self._content.lti_config
-        self._lti_secrets = self._content.lti_secrets
-        self._lti_send_back_grade = self._content.lti_send_back_grade
         self._tags = {key: Tag(key, tag_dict, self.gettext) for key, tag_dict in self._content.tags.items()}
 
         try:
@@ -162,7 +149,7 @@ class Course(object):
             raise CourseUnreadableException(f"Course {self.get_id()} has an invalid task dispenser : {str(e)}")
 
         # Build the regex for the ACL, allowing for fast matching. Only used internally.
-        self._registration_ac_regex = self._build_ac_regex(self._registration_ac_list)
+        self._registration_ac_regex = self._build_ac_regex(self._content.registration_ac_list)
 
     def set_translations(self, translations : dict[str, gettext.GNUTranslations]):
         self._translations = translations
@@ -187,7 +174,7 @@ class Course(object):
 
     def get_descriptor(self):
         """ Get the description of the course as a python dict. """
-        return self._pre_validated_content # -> is this an alternative ? Needed ?
+        return copy.deepcopy(self._pre_validated_content)
 
 
     def get_staff(self):
@@ -196,11 +183,11 @@ class Course(object):
 
     def get_admins(self):
         """ Returns a list containing the usernames of the administrators of this course """
-        return self._admins
+        return self._content.admins
 
     def get_tutors(self):
         """ Returns a list containing the usernames of the tutors assigned to this course """
-        return self._tutors
+        return self._content.tutors
 
     def is_open_to_non_staff(self):
         """ Returns true if the course is accessible by users that are not administrator of this course """
@@ -208,27 +195,27 @@ class Course(object):
 
     def is_registration_possible(self, user_info: UserInfo):
         """ Returns true if users can register for this course """
-        return self.get_accessibility().is_open() and self._registration.is_open() and self.is_user_accepted_by_access_control(user_info)
+        return self.get_accessibility().is_open() and self._content.registration.is_open() and self.is_user_accepted_by_access_control(user_info)
 
     def is_password_needed_for_registration(self):
         """ Returns true if a password is needed for registration """
-        return self._registration_password is not None
+        return self._content.registration_password is not None
 
     def get_registration_password(self):
         """ Returns the password needed for registration (None if there is no password) """
-        return self._registration_password
+        return self._content.registration_password
 
     def get_accessibility(self, plugin_override=True):
         """ Return the AccessibleTime object associated with the accessibility of this course """
         if self.is_archive():
             return AccessibleTime(False)
 
-        vals = plugin_manager.call_hook('course_accessibility', course=self, default=self._accessible)
-        return vals[0] if len(vals) and plugin_override else self._accessible
+        vals = plugin_manager.call_hook('course_accessibility', course=self, default=self._content.accessible)
+        return vals[0] if len(vals) and plugin_override else self._content.accessible
 
     def get_registration_accessibility(self):
         """ Return the AccessibleTime object associated with the registration """
-        return self._registration
+        return self._content.registration
 
     def get_readable_tasks(self):
         """ Returns the list of all available tasks in a course """
@@ -251,43 +238,43 @@ class Course(object):
 
     def get_access_control_method(self):
         """ Returns either None, "username", "binding", or "email", depending on the method used to verify that users can register to the course """
-        return self._registration_ac
+        return self._content.registration_ac
 
     def get_access_control_accept(self):
         """ Returns either True (accept) or False (deny), depending on the control type used to verify that users can register to the course """
-        return self._registration_ac_accept
+        return self._content.registration_ac_accept
 
     def get_access_control_list(self) -> List[str]:
         """ Returns the list of all users/emails/binding methods/... (see get_access_control_method) allowed by the AC list """
-        return self._registration_ac_list
+        return self._content.registration_ac_list
 
     def can_students_choose_group(self):
         """ Returns True if the students can choose their groups """
-        return self._groups_student_choice
+        return self._content.groups_student_choice
 
     def is_lti(self):
         """ True if the current course is in LTI mode """
-        return self._is_lti
+        return self._content.is_lti
 
     def lti_keys(self):
         """ {name: key} for the LTI customers """
-        return self._lti_keys if self._is_lti else {}
+        return self._content.lti_keys if self._content.is_lti else {}
 
     def lti_config(self):
         """ LTI Tool config dictionary. Specs are at https://github.com/dmitry-viskov/pylti1.3/blob/master/README.rst?plain=1#L70-L98 """
-        return self._lti_config if self._is_lti else {}
+        return self._content.lti_config if self._content.is_lti else {}
 
     def lti_secrets(self):
         """ {deployment: secret} for the LTI 1.3 consumers """
-        return self._lti_secrets if self._is_lti else {}
+        return self._content.lti_secrets if self._content.is_lti else {}
 
     def lti_url(self):
         """ Returns the URL to the external platform the course is hosted on """
-        return self._lti_url
+        return self._content.lti_url
 
     def lti_send_back_grade(self):
         """ True if the current course should send back grade to the LTI Tool Consumer """
-        return self._is_lti and self._lti_send_back_grade
+        return self._content.is_lti and self._content.lti_send_back_grade
 
     def is_user_accepted_by_access_control(self, user_info: UserInfo):
         """ Returns True if the user is allowed by the ACL """
@@ -309,12 +296,12 @@ class Course(object):
         return at_least_one if self.get_access_control_accept() else not at_least_one
 
     def allow_preview(self):
-        return self._allow_preview
+        return self._content.allow_preview
 
     def allow_unregister(self, plugin_override=True):
         """ Returns True if students can unregister from course """
-        vals = plugin_manager.call_hook('course_allow_unregister', course=self, default=self._allow_unregister)
-        return vals[0] if len(vals) and plugin_override else self._allow_unregister
+        vals = plugin_manager.call_hook('course_allow_unregister', course=self, default=self._content.allow_unregister)
+        return vals[0] if len(vals) and plugin_override else self._content.allow_unregister
 
     def get_name(self, language):
         """ Return the name of this course """
@@ -322,7 +309,7 @@ class Course(object):
 
     def get_description(self, language):
         """Returns the course description """
-        description = self.gettext(language, self._description) if self._description else ''
+        description = self.gettext(language, self._content.description) if self._content.description else ''
         return ParsableText(description, "rst")
 
     def get_tags(self):
@@ -340,11 +327,11 @@ class Course(object):
 
     def is_archive(self):
         """ Returns true if the course is an archive"""
-        return self._is_archive
+        return self._content.archived
 
     def get_archiving_date(self):
         """ Returns the date at which the course was archived as a string (None if not archived)"""
-        return self._archive_date
+        return self._content.archive_date
 
     def set_descriptor_element(self, key: str, value: Any):
         self._pre_validated_content[key] = value
