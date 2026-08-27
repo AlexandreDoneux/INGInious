@@ -127,7 +127,10 @@ class Course(object):
         try:
             self._content = CourseDescriptor(**content)
         except ValidationError as e:
-            raise CourseUnreadableException(f"Course '{courseid}' has an invalid '{e.errors()[0]['loc'][0]}' YAML spec: {e.errors()[0]['msg']}")
+            if bool(set(e.errors()[0]['loc']) & {"admins", "tutors", "registration_password", "registration_ac_list", "lti_secrets", }):  # if the error is related to a sensitive field, do not print the message
+                raise CourseUnreadableException(f"Course '{courseid}' has an invalid '{e.errors()[0]['loc'][0]}' YAML spec.")
+            else:
+                raise CourseUnreadableException(f"Course '{courseid}' has an invalid '{e.errors()[0]['loc'][0]}' YAML spec: {e.errors()[0]['msg']}")
 
         self._fs = get_fs_provider().from_subfolder(courseid)
         self._new_doc = not self._fs.exists()

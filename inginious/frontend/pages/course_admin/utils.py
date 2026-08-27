@@ -54,7 +54,7 @@ class INGIniousAdminPage(INGIniousAuthPage):
                 return course, course.get_task(taskid)
         except CourseUnreadableException as e:
             self._logger.error(str(e))
-            raise NotFound(description=_("Course not found."))
+            raise NotFound(description=str(e))
         except InvalidNameException as e:
             self._logger.error(str(e))
             raise NotFound(description=_("Course not found."))

@@ -40,7 +40,7 @@ class CoursePage(INGIniousAuthPage):
             course = Course.get(courseid)
         except CourseUnreadableException as e:
             self._logger.error(str(e))
-            raise NotFound(description=_("Course not found."))
+            raise NotFound(description=str(e))
         except InvalidNameException as e:
             self._logger.error(str(e))
             raise NotFound(description=_("Course not found."))
