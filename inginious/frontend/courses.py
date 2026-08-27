@@ -14,6 +14,7 @@ import logging
 from typing import List, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, model_validator, ValidationError, ConfigDict
+from pydantic_core import InitErrorDetails
 from typing import Optional, Literal
 
 from inginious.common.filesystems import FileSystemProvider, fetch_or_cache, invalidate_cache, get_fs_provider
@@ -116,6 +117,35 @@ class CourseDescriptor(BaseModel):
             return AccessibleTime(v)
         except Exception as e:
             raise ValueError(f"Invalid time format.")
+
+    # validator on archived VS archive_date
+    @model_validator(mode="after")
+    def check_archive_fields(self):
+        if self.archived and not self.archive_date:
+            raise ValidationError.from_exception_data(
+                self.__class__.__name__,
+                [
+                    InitErrorDetails(
+                        type="value_error",
+                        loc=("archive_date",),
+                        input=self.archive_date,
+                        ctx={"error": ValueError("Archive_date must be set if archived is True.")},
+                    )
+                ],
+            )
+        if not self.archived and self.archive_date:
+            raise ValidationError.from_exception_data(
+                self.__class__.__name__,
+                [
+                    InitErrorDetails(
+                        type="value_error",
+                        loc=("archived",),
+                        input=self.archived,
+                        ctx={"error": ValueError("Archive_date is given but archived is False.")},
+                    )
+                ],
+            )
+        return self
 
 
 class Course(object):
