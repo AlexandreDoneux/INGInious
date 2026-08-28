@@ -352,8 +352,6 @@ class APISubmissionInput(APIAuthenticatedPage):
             Unlike the other submissions endpoints, this one does not go through the standard JSON
             conversion: it directly returns the raw content of the submission's input.
 
-            # TODO: stream the input chunk by chunk instead of loading it fully in memory
-
             The input is returned as-is (Content-Type: application/octet-stream): it is the single BSON-encoded
             blob that is stored for in the database. Accessible to any user listed in the submission's "username" field
             (any member of a group submission), or to a staff member of the course.
@@ -407,9 +405,15 @@ class APISubmissionInput(APIAuthenticatedPage):
             raise APIForbidden("You are not allowed to access this submission")
 
         submission.input.seek(0)
-        content = submission.input.read()
 
-        response = flask.Response(content, mimetype="application/octet-stream")
+        def submission_generator():
+            while True:
+                chunk = submission.input.read(64 * 1024) # 64 KB chunks
+                if not chunk:
+                    break
+                yield chunk
+
+        response = flask.Response(submission_generator(), mimetype="application/octet-stream")
         response.headers["Content-Disposition"] = 'attachment; filename="{}.bson"'.format(submissionid)
         return response
 
