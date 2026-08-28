@@ -5,18 +5,15 @@
 
 """ Submissions """
 
-import base64
 import flask
-import json
-from bson import json_util
-
 from flask import current_app, request
+
 from inginious.frontend.courses import Course
 from inginious.frontend.pages.api._api_page import APIAuthenticatedPage, APINotFound, APIForbidden, APIInvalidArguments, APIError
 from inginious.frontend.models.submission import Submission
 
 
-def _get_submissions(username, submission_manager, user_manager, courseid, taskid, with_input, submissionid=None):
+def _get_submissions(username, submission_manager, user_manager, courseid, taskid, submissionid=None):
     """
         Helper for the GET methods of the two following classes
     """
@@ -57,13 +54,6 @@ def _get_submissions(username, submission_manager, user_manager, courseid, taski
             "status": submission["status"]
         }
 
-        if with_input:
-            data["input"] = submission_manager.get_input_from_submission(submission, True)
-
-            # base64 encode file to allow JSON encoding
-            for d in data["input"]:
-                if isinstance(d, dict) and d.keys() == {"filename", "value"}:
-                    d["value"] = base64.b64encode(d["value"]).decode("utf8")
 
         if submission["status"] == "done":
             data["grade"] = submission.grade
@@ -81,7 +71,7 @@ class APISubmissionSingle(APIAuthenticatedPage):
         Endpoint
           ::
 
-            /api/v0/courses/[a-zA-Z_\-\.0-9]+/tasks/[a-zA-Z_\-\.0-9]+/submissions/[a-zA-Z_\-\.0-9]+
+            /api/v1/courses/[a-zA-Z_\-\.0-9]+/[a-zA-Z_\-\.0-9]+/my_submissions/[a-zA-Z_\-\.0-9]+
 
     """
 
@@ -97,7 +87,6 @@ class APISubmissionSingle(APIAuthenticatedPage):
                         "submitted_on": "date",
                         "status" : "done",          #can be "done", "waiting", "error" (execution status of the task).
                         "grade": 0.0,
-                        "input": {},                #the input data. File are base64 encoded.
                         "result" : "success"        #only if status=done. Result of the execution.
                         "feedback": ""              #only if status=done. the HTML global feedback for the task
                         "problems_feedback":        #only if status=done. HTML feedback per problem. Some pid may be absent.
@@ -111,11 +100,13 @@ class APISubmissionSingle(APIAuthenticatedPage):
 
             If you use the endpoint /api/v0/courses/the_course_id/tasks/the_task_id/submissions/submissionid,
             this dict will contain one entry or the page will return 404 Not Found.
+
+            The raw input submitted by the student is not included here. Use the dedicated
+            /api/v1/submissions/<submissionid>/input endpoint to download it.
         """
-        with_input = "input" in flask.request.args
         username = flask.g.user.username
 
-        return _get_submissions(username, self.submission_manager, self.user_manager, courseid, taskid, with_input, submissionid)
+        return _get_submissions(username, self.submission_manager, self.user_manager, courseid, taskid, submissionid)
 
 
 class APISubmissions(APIAuthenticatedPage):
@@ -123,7 +114,7 @@ class APISubmissions(APIAuthenticatedPage):
         Endpoint
           ::
 
-            /api/v0/courses/[a-zA-Z_\-\.0-9]+/tasks/[a-zA-Z_\-\.0-9]+/submissions
+            /api/v1/courses/[a-zA-Z_\-\.0-9]+/[a-zA-Z_\-\.0-9]+/my_submissions
 
     """
 
@@ -139,7 +130,6 @@ class APISubmissions(APIAuthenticatedPage):
                         "submitted_on": "date",
                         "status" : "done",          #can be "done", "waiting", "error" (execution status of the task).
                         "grade": 0.0,
-                        "input": {},                #the input data. File are base64 encoded.
                         "result" : "success"        #only if status=done. Result of the execution.
                         "feedback": ""              #only if status=done. the HTML global feedback for the task
                         "problems_feedback":        #only if status=done. HTML feedback per problem. Some pid may be absent.
@@ -153,11 +143,13 @@ class APISubmissions(APIAuthenticatedPage):
 
             If you use the endpoint /api/v0/courses/the_course_id/tasks/the_task_id/submissions/submissionid,
             this dict will contain one entry or the page will return 404 Not Found.
+
+            The raw input submitted by the student is not included here. Use the dedicated
+            /api/v1/submissions/<submissionid>/input endpoint to download it.
         """
-        with_input = "input" in flask.request.args
         username = flask.g.user.username
 
-        return _get_submissions(username, self.submission_manager, self.user_manager, courseid, taskid, with_input)
+        return _get_submissions(username, self.submission_manager, self.user_manager, courseid, taskid)
 
     def API_POST(self, courseid, taskid):  # pylint: disable=arguments-differ
         """
@@ -227,13 +219,19 @@ class APISubmissions(APIAuthenticatedPage):
 
 
 class APISubmissionsCourse(APIAuthenticatedPage):
+    """
+        Endpoints
+            ::
 
+                /api/v1/courses/[a-zA-Z_\-\.0-9]+/submissions
+
+                /api/v1/courses/[a-zA-Z_\-\.0-9]+/[a-zA-Z_\-\.0-9]+/submissions
+    """
 
     def API_POST(self, courseid, taskid
     =None):
         """
             List all the submissions from a course that were evaluated (done). Or all submissions for a particular task in case a task id is given.
-            # TODO : have two different docs ?How to display them separately in the documentation ?
             Only accessible to staff members of the course.
             Returns a 200 OK if the endpoint is reachable and the user has access to it.
             Returns 403 Forbidden if the user does not have access to the course/task.
@@ -244,6 +242,7 @@ class APISubmissionsCourse(APIAuthenticatedPage):
 
                 [
                     {
+                        "id": "submission_id1",
                         "courseid": "submission_id1",
                         "taskid": "date",
                         "username" : ["user1", "user2", ...],          #list of users related to that submissions (multiple users in case of a group submission)
@@ -252,43 +251,21 @@ class APISubmissionsCourse(APIAuthenticatedPage):
                         "grade": 0.0,
                         "stderr": "stderr output of the submission",
                         "stdout": "stdout output of the submission",
-                        "input": {  #input data from the submission, additional info and input submitted by the student.
-                            "@username" : "user1",
-                            "@email" : "user1@email.com",
-                            "@lang" : "en",
-                            "@time": "2026-06-23 15:01:44.706579+00:00",
-                            "@attempts": "5",
-                            "@random": [],
-                            "@state": "",
-                            ...
-                        },
                     }
                 ]
 
-            The input field also contains the inputs of the student for all problems of the task. File contents are encoded in base64.
-             The structure depends on the type of the problem :
-
-
-                {
-                    "code_problem": ""print(\"Hello world!\")"",
-                    "file_problem": {
-                        "filename": "file1.zip",
-                        "value": "sDBBQAVcbcAWpn2wFoAQAAYi9maXp6YnV6e......DQAH4NsBagbcAWrg2wFqdXgLAAEE6AMAAAToAwAAUEsFBgAAAAAEAAQAVgEAAEACAAAAAA=="
-                        },
-                    "qcm_problem": {
-                        # number of the selected answer for each question, starting from 0.
-                        "qcm1": "0",
-                        "qcm2": "2",
-                        "qcm3": "1",
-                        ...
-                    }
+            The raw input submitted by the student (file contents, code, QCM answers, etc.) is not included in this
+            list.
+            Use the dedicated /api/v1/submissions/<submissionid>/input endpoint
+            (accessible to staff members or to the author (or users in the group if a group submission) to download the
+            raw input of one particular submission.
 
             This endpoint takes a token in the header (accessible from your account settings) and a JSON body with the following fields :
             - select: "all" (default), "best", "last" : select all submissions, the best submission per student, or the last submission per student
             - username: a list of usernames to filter the submissions. If none is provided (or it is empty), the submissions for all users are returned
 
             example of a call to this endpoint using curl: :
-                curl -X POST "http://localhost:8080/api/v0/token/courses/tutorial/submissions"
+                curl -X POST "http://localhost:8080/api/v1/courses/tutorial/submissions"
                 -H "Authorization: Bearer <token>"
                 -H "Content-Type: application/json"  -d '{ "select": "last", "username" : ["user1"] }'
 
@@ -324,11 +301,11 @@ class APISubmissionsCourse(APIAuthenticatedPage):
 
         if select == "best":
             submissions = Submission.objects(**query) \
-                .only("courseid", "taskid", "username", "submitted_on", "result", "grade", "stderr", "stdout", "input") \
+                .only("id", "courseid", "taskid", "username", "submitted_on", "result", "grade", "stderr", "stdout") \
                 .order_by("-grade", "-submitted_on")
         else:  # select == "last" or select == "all"
             submissions = Submission.objects(**query) \
-                .only("courseid", "taskid", "username", "submitted_on", "result", "grade", "stderr", "stdout", "input") \
+                .only("id", "courseid", "taskid", "username", "submitted_on", "result", "grade", "stderr", "stdout") \
                 .order_by("-submitted_on")
 
         if select in ("best", "last"):
@@ -343,6 +320,7 @@ class APISubmissionsCourse(APIAuthenticatedPage):
 
         def serialize(s):
             return {
+                "id": str(s.id),
                 "courseid": s.courseid,
                 "taskid": s.taskid,
                 "username": s.username,
@@ -351,11 +329,88 @@ class APISubmissionsCourse(APIAuthenticatedPage):
                 "grade": s.grade,
                 "stderr": s.stderr,
                 "stdout": s.stdout,
-                "input": json.loads(json_util.dumps(s.get_input())),
             }
 
         submissions_list = [serialize(s) for s in submissions]
 
         return 200, submissions_list
+
+
+class APISubmissionInput(APIAuthenticatedPage):
+    r"""
+        Endpoint
+          ::
+
+            /api/v1/submissions/<submissionid>/input
+
+    """
+
+    def GET(self, submissionid):
+        """
+            Download the raw input of a single submission.
+
+            Unlike the other submissions endpoints, this one does not go through the standard JSON
+            conversion: it directly returns the raw content of the submission's input.
+
+            # TODO: stream the input chunk by chunk instead of loading it fully in memory
+
+            The input is returned as-is (Content-Type: application/octet-stream): it is the single BSON-encoded
+            blob that is stored for in the database. Accessible to any user listed in the submission's "username" field
+            (any member of a group submission), or to a staff member of the course.
+
+            The input is formatted as follows, with additional metadata and the different problems' input :
+            {
+                "@username" : "user1",
+                "@email" : "user1@email.com",
+                "@lang" : "en",
+                "@time": "2026-06-23 15:01:44.706579+00:00",
+                "@attempts": "5",
+                "@random": [],
+                "@state": "",
+
+                "code_problem": "print(\"Hello world!\")",
+                "file_problem": {
+                    "filename": "file1.zip",
+                    "value": "sDBBQAVcbcAWpn2wFoAQAAYi9maXp6YnV6e......DQAH4NsBagbcAWrg2wFqdXgLAAEE6AMAAAToAwAAUEsFBgAAAAAEAAQAVgEAAEACAAAAAA=="
+                    },
+                "qcm_problem": {
+                    # number of the selected answer for each question, starting from 0.
+                    "qcm1": "0",
+                    "qcm2": "2",
+                    "qcm3": "1",
+                    ...
+            }
+
+            Returns 403 Forbidden if the user is not allowed to access this submission, and 404 Not Found if the
+            course/task/submission does not exist.
+        """
+        try:
+            return self._verify_authentication(self._get_input, (submissionid,), {})
+        except APIError as error:
+            return error.send()
+
+    def _get_input(self, submissionid):
+        username = flask.g.user.username
+
+        try:
+            submission = self.submission_manager.get_submission(submissionid, user_check=False)
+        except:
+            raise APINotFound("Submission not found")
+
+        if submission is None:
+            raise APINotFound("Submission not found")
+
+        course = Course.get(submission.courseid)
+        is_staff = self.user_manager.has_staff_rights_on_course(course, username, include_superadmins=True)
+        is_owner = username in submission.username
+        if not (is_staff or is_owner):
+            raise APIForbidden("You are not allowed to access this submission")
+
+        submission.input.seek(0)
+        content = submission.input.read()
+
+        response = flask.Response(content, mimetype="application/octet-stream")
+        response.headers["Content-Disposition"] = 'attachment; filename="{}.bson"'.format(submissionid)
+        return response
 
 
