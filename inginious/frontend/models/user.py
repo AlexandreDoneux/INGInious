@@ -4,11 +4,14 @@
 # more information about the licensing of this file.
 
 import tzlocal
+import uuid
 
 from mongoengine import Document,  StringField, ListField, MapField, BooleanField, DynamicField, EmbeddedDocument, EmbeddedDocumentField, DateTimeField
 
 class APIToken(EmbeddedDocument):
-    """ Embedded document for API tokens. Contains the token hash, expiration date, description and hash algorithm used. """
+    """ Embedded document for API tokens. Contains id (used for identifying a token without using directly the hash),
+    the token hash, expiration date,description and hash algorithm used. """
+    token_id = StringField(required=True, default=lambda: uuid.uuid4().hex) # also used as the key in the MapField of tokens
     token = StringField(required=True)
     expires = DateTimeField(required=True)
     description = StringField(required=True)
@@ -25,7 +28,7 @@ class User(Document):
     ltibindings = MapField(StringField())
     tos_accepted = BooleanField(default=False)
     apikey = StringField(default=None)
-    apitokens = ListField(EmbeddedDocumentField(APIToken), default=[])
+    apitokens = MapField(EmbeddedDocumentField(APIToken), default={})
     timezone = StringField(default=lambda: tzlocal.get_localzone_name())
     pinned_courses = ListField(StringField(), default=[])
     activate = StringField()

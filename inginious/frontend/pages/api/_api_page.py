@@ -129,7 +129,7 @@ class APIAuthenticatedPage(APIPage):
 
         flask.g.user = User.objects(username=payload["username"]).first()
 
-        if not any(UserManager.verify_hash(api_token["token"], token) for api_token in flask.g.user.apitokens) :
+        if not any(UserManager.verify_hash(api_token.token, token) for api_token in flask.g.user.apitokens.values()) :
             raise APIForbidden("Invalid token. It is correctly formatted but does not belong to the user in the JWT.")
         return handler(*args, **kwargs)
 

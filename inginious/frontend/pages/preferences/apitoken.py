@@ -21,11 +21,6 @@ class APITokenPage(INGIniousAuthPage):
     def GET_AUTH(self):
         """ GET request """
 
-        user = User.objects(username=session["username"]).first()
-        token_dict = {}
-
-        for token in user.apitokens:
-            token_dict[token.token] = token
 
         return self.show_page()
 
@@ -59,15 +54,16 @@ class APITokenPage(INGIniousAuthPage):
 
             expiration = jwt.decode(generated_token, api_jwt_secret, algorithms=[api_jwt_algorithm])["exp"]
             expiration  = datetime.datetime.fromtimestamp(expiration, tz=timezone.utc)
-            user.apitokens.append(APIToken(token=UserManager.hash_password(generated_token), expires=expiration, description=description))
+            new_token = APIToken(token=UserManager.hash_password(generated_token), expires=expiration, description=description)
+            user.apitokens[new_token.token_id] = new_token
             user.save()
 
             return self.show_page()
 
         # invalidates a token
         if "delete" in request.form:
-            token_to_delete = request.form.get('token')
-            user.apitokens = [token for token in user.apitokens if token.token != token_to_delete]
+            token_id_to_delete = request.form.get('token_id')
+            user.apitokens.pop(token_id_to_delete, None)
             user.save()
 
 
@@ -79,9 +75,10 @@ class APITokenPage(INGIniousAuthPage):
             errors = []
 
         user = User.objects(username=session["username"]).first()
-        token_list = []
-
-        for token in user.apitokens:
-            token_list.append(token)
+        # Exclude the token hash from the data sent to the template
+        token_list = [
+            {"token_id": token.token_id, "description": token.description, "expires": token.expires}
+            for token in user.apitokens.values()
+        ]
 
         return render_template("apitoken.html", errors=errors, generated_token=generated_token, token_list=token_list)
