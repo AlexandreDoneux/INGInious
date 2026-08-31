@@ -7,11 +7,13 @@
 from flask import current_app, session, request, render_template
 import jwt
 import datetime
+import zoneinfo
 from datetime import timezone
 
 from inginious.frontend.pages.utils import INGIniousAuthPage
 from inginious.frontend.models import User, APIToken
 from inginious.frontend.user_manager import UserManager
+from inginious.frontend.accessible_time import parse_date
 
 
 
@@ -29,7 +31,6 @@ class APITokenPage(INGIniousAuthPage):
 
         api_jwt_secret = current_app.config.get('API_JWT_SECRET')
         api_jwt_algorithm = current_app.config.get('API_JWT_ALGORITHM')
-        api_jwt_lifetime = datetime.timedelta(days=current_app.config.get('API_JWT_LIFETIME'))
 
         user = User.objects(username=session["username"]).first()
 
@@ -40,7 +41,26 @@ class APITokenPage(INGIniousAuthPage):
             if description == "" :
                 return self.show_page(errors=["Description is required to generate a token."])
 
-            expiration = datetime.datetime.now(tz=timezone.utc) + api_jwt_lifetime
+            expires_in = request.form.get("expires_in", "")
+
+            if expires_in == "custom":
+                custom_date = request.form.get("custom_expiration")
+                try:
+                    expiration = parse_date(custom_date, default=None)
+                except (TypeError, ValueError, zoneinfo.ZoneInfoNotFoundError):
+                    return self.show_page(errors=["Please provide a valid custom expiration date."])
+
+                now = datetime.datetime.now(tz=timezone.utc)
+                if expiration <= now:
+                    return self.show_page(errors=["The expiration date must be in the future."])
+            else:
+                try:
+                    days = int(expires_in)
+                except (TypeError, ValueError):
+                    return self.show_page(errors=["Please select a valid expiration duration."])
+
+                expiration = datetime.datetime.now(tz=timezone.utc) + datetime.timedelta(days=days)
+
             payload = {
                 "username": user.username,
                 "exp": expiration.timestamp(),

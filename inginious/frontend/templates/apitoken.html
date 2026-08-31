@@ -99,6 +99,36 @@
                     <input type="text" class="form-control" name="description"
                            placeholder="{{ _('Provide a description for your token.') }}" required/>
                 </div>
+
+                <div class="mb-2">
+                    <label for="expires_in" class="form-label">{{ _("Expiration") }}</label>
+                    <select id="expires_in" name="expires_in" class="form-control"
+                            onchange="document.getElementById('custom-expiration-field').classList.toggle('d-none', this.value !== 'custom');">
+                        <option value="30">{{ _("30 days") }}</option>
+                        <option value="60">{{ _("60 days") }}</option>
+                        <option value="90">{{ _("90 days") }}</option>
+                        <option value="180">{{ _("6 months") }}</option>
+                        <option value="365">{{ _("1 year") }}</option>
+                        <option value="custom">{{ _("Custom...") }}</option>
+                    </select>
+                </div>
+
+                <div id="custom-expiration-field" class="mb-2 d-none">
+                    <label for="custom_expiration_picker" class="form-label">{{ _("Custom expiration date") }}</label>
+                    <div class='input-group date' id='custom_expiration_picker' data-target-input="nearest">
+                        <input data-target='#custom_expiration_picker' name="custom_expiration" data-date-format="YYYY-MM-DD HH:mm:ss"
+                               placeholder="2027-06-29 10:00" type='text' class="form-control datetimepicker-input"/>
+                        <div class="input-group-append" data-target="#custom_expiration_picker" data-toggle="datetimepicker">
+                            <div class="input-group-text"><i class="fa fa-calendar"></i></div>
+                        </div>
+                    </div>
+                </div>
+                <script type="text/javascript">
+                    $(function() {
+                        $('#custom_expiration_picker').datetimepicker({locale: '{{session.language}}', sideBySide: true, format:'YYYY-MM-DD HH:mm:ssZ', timeZone: '{{session.timezone}}'});
+                    });
+                </script>
+
                 <button type="submit" name="save" class="btn btn-primary btn-block">
                     <i class="fa fa-save"></i> {{ _("Save") }}
                 </button>
