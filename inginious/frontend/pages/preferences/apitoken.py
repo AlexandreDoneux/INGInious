@@ -33,32 +33,25 @@ class APITokenPage(INGIniousAuthPage):
 
         user = User.objects(username=session["username"]).first()
 
-        # generate a new token
-        if "generate" in request.form:
+        # generate and save a new token in a single request
+        if "save" in request.form:
+            description = request.form.get("description")
+
+            if description == "" :
+                return self.show_page(errors=["Description is required to generate a token."])
+
             expiration = datetime.datetime.now(tz=timezone.utc) + api_jwt_lifetime
             payload = {
                 "username": user.username,
                 "exp": expiration.timestamp(),
             }
-            token = jwt.encode(payload, api_jwt_secret, algorithm=api_jwt_algorithm) # TODO : hash token
+            token = jwt.encode(payload, api_jwt_secret, algorithm=api_jwt_algorithm)
 
-            return self.show_page(generated_token=token)
-
-        # save the token and description in the database
-        if "save" in request.form:
-            generated_token = request.form.get("generated_token")
-            description = request.form.get("description")
-
-            if description == "" :
-                return self.show_page(errors=["Description is required to save the token."])
-
-            expiration = jwt.decode(generated_token, api_jwt_secret, algorithms=[api_jwt_algorithm])["exp"]
-            expiration  = datetime.datetime.fromtimestamp(expiration, tz=timezone.utc)
-            new_token = APIToken(token=UserManager.hash_password(generated_token), expires=expiration, description=description)
+            new_token = APIToken(token=UserManager.hash_password(token), expires=expiration, description=description)
             user.apitokens[new_token.token_id] = new_token
             user.save()
 
-            return self.show_page()
+            return self.show_page(generated_token=token)
 
         # invalidates a token
         if "delete" in request.form:
