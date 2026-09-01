@@ -67,3 +67,6 @@ reverse-proxy-config:
 
 # API JSON Web Token parameters
 api_jwt_secret: "jwt_secret_key"
+api_jwt_old_secrets: # previously used secrets. Do not remove old secrets, as they are used to validate old tokens.
+  - "old_jwt_secret_key"
+  - "older_jwt_secret_key"

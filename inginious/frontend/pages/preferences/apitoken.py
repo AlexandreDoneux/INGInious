@@ -4,8 +4,7 @@
 # more information about the licensing of this file.
 
 """ API token page """
-from flask import current_app, session, request, render_template
-import jwt
+from flask import session, request, render_template
 import datetime
 import zoneinfo
 from datetime import timezone
@@ -14,6 +13,7 @@ from inginious.frontend.pages.utils import INGIniousAuthPage
 from inginious.frontend.models import User, APIToken
 from inginious.frontend.user_manager import UserManager
 from inginious.frontend.accessible_time import parse_date
+from inginious.frontend.pages.jwt_utils import encode_jwt
 
 
 
@@ -29,8 +29,6 @@ class APITokenPage(INGIniousAuthPage):
     def POST_AUTH(self):
         """ POST request, generates a new token for the user """
 
-        api_jwt_secret = current_app.config.get('API_JWT_SECRET')
-        api_jwt_algorithm = current_app.config.get('API_JWT_ALGORITHM')
 
         user = User.objects(username=session["username"]).first()
 
@@ -65,7 +63,7 @@ class APITokenPage(INGIniousAuthPage):
                 "username": user.username,
                 "exp": expiration.timestamp(),
             }
-            token = jwt.encode(payload, api_jwt_secret, algorithm=api_jwt_algorithm)
+            token = encode_jwt(payload)
 
             new_token = APIToken(token=UserManager.hash_password(token), expires=expiration, description=description)
             user.apitokens[new_token.token_id] = new_token

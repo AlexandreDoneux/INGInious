@@ -15,7 +15,6 @@ class APIToken(EmbeddedDocument):
     token = StringField(required=True)
     expires = DateTimeField(required=True)
     description = StringField(required=True)
-    algorithm = StringField(required=True, default="HS256")
 
 class User(Document):
     username = StringField(required=True)

@@ -7,17 +7,22 @@
 
 import json
 import flask
-from flask import Response, current_app
+from flask import Response
 import jwt
+import logging
 
 import inginious.common.custom_yaml as yaml
 from inginious.frontend.pages.utils import INGIniousPage
 from inginious.frontend.models import User
 from inginious.frontend.user_manager import UserManager
+from inginious.frontend.pages.jwt_utils import decode_jwt
 
 
 class APIPage(INGIniousPage):
     """ Generic handler for all API pages """
+
+    def __init__(self):
+        self._logger = logging.getLogger("inginious.frontend.api")
 
     def GET(self, *args, **kwargs):
         """ GET request """
@@ -111,21 +116,21 @@ class APIAuthenticatedPage(APIPage):
     def _verify_authentication(self, handler, args, kwargs):
         """ Verify that the given token is valid """
 
-
         auth_header = flask.request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
             raise APIForbidden("Missing or malformed Authorization header")
         token = auth_header.removeprefix("Bearer ").strip()
 
-        api_jwt_secret = current_app.config.get('API_JWT_SECRET')
-        api_jwt_algorithm = current_app.config.get('API_JWT_ALGORITHM')
-
         try:
-            payload = jwt.decode(token, api_jwt_secret, algorithms=[api_jwt_algorithm])
+            payload = decode_jwt(token)
         except jwt.ExpiredSignatureError:
             raise APIForbidden("Your token has expired, please generate a new one.")
-        except jwt.InvalidTokenError:
-            raise APIForbidden("Invalid token. It is not correctly formatted.")
+        except (jwt.InvalidSignatureError, jwt.DecodeError, jwt.InvalidTokenError):
+            # token signature does not match any known secret, token is malformed, or any other token-related error from PyJWT
+            raise APIForbidden("Invalid token.")
+        except Exception as e:
+            self._logger.exception("Unexpected error while decoding JWT: %s", str(e))
+            raise APIForbidden(f"Invalid token.")
 
         flask.g.user = User.objects(username=payload["username"]).first()
 
