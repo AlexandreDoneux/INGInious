@@ -9,9 +9,12 @@ import flask
 from flask import current_app, request
 
 from inginious.frontend.courses import Course
-from inginious.frontend.pages.api._api_page import APIAuthenticatedPage, APINotFound, APIForbidden, APIInvalidArguments, APIError
+from inginious.frontend.pages.api._api_page import APIAuthenticatedPage, APINotFound, APIForbidden, APIInvalidArguments, APIError, \
+    stream_json_array
 from inginious.frontend.models.submission import Submission
 
+
+streaming_threshold = 500
 
 def _get_submissions(username, submission_manager, user_manager, courseid, taskid, submissionid=None):
     """
@@ -41,9 +44,10 @@ def _get_submissions(username, submission_manager, user_manager, courseid, taski
         if submissions[0]["taskid"] != task.get_id() or submissions[0]["courseid"] != course.get_id():
             raise APINotFound("Submission not found")
 
-    output = []
-
-    for submission in submissions:
+    def serialize(submission):
+        """
+        Generator for stream_json_array() to stream the response instead of building the whole list in memory.
+        """
         submission = submission_manager.get_feedback_from_submission(
             submission,
             show_everything=user_manager.has_staff_rights_on_course(course, username)
@@ -54,16 +58,18 @@ def _get_submissions(username, submission_manager, user_manager, courseid, taski
             "status": submission["status"]
         }
 
-
         if submission["status"] == "done":
             data["grade"] = submission.grade
             data["result"] = submission.result
             data["feedback"] = submission.text
             data["problems_feedback"] = submission.problems
 
-        output.append(data)
+        return data
 
-    return 200, output
+    if len(submissions) > streaming_threshold:
+        return stream_json_array(serialize(s) for s in submissions)
+
+    return 200, [serialize(s) for s in submissions]
 
 
 class APISubmissionSingle(APIAuthenticatedPage):
@@ -269,6 +275,10 @@ class APISubmissionsCourse(APIAuthenticatedPage):
                 -H "Authorization: Bearer <token>"
                 -H "Content-Type: application/json"  -d '{ "select": "last", "username" : ["user1"] }'
 
+            Note: if the number of matching submissions exceeds an internal threshold (500), the response is streamed
+            as a JSON array (chunked transfer-encoding) instead of being returned all at once, so that large
+            courses/tasks do not need to be fully loaded in memory on the server, and clients can start processing
+            submissions as they arrive.
         """
 
         username = flask.g.user.username
@@ -300,23 +310,13 @@ class APISubmissionsCourse(APIAuthenticatedPage):
             query["username__in"] = usernames
 
         if select == "best":
-            submissions = Submission.objects(**query) \
+            cursor = Submission.objects(**query) \
                 .only("id", "courseid", "taskid", "username", "submitted_on", "result", "grade", "stderr", "stdout") \
                 .order_by("-grade", "-submitted_on")
         else:  # select == "last" or select == "all"
-            submissions = Submission.objects(**query) \
+            cursor = Submission.objects(**query) \
                 .only("id", "courseid", "taskid", "username", "submitted_on", "result", "grade", "stderr", "stdout") \
                 .order_by("-submitted_on")
-
-        if select in ("best", "last"):
-            seen = set()
-            result = []
-            for s in submissions:
-                key = (tuple(sorted(s.username)), s.taskid)
-                if key not in seen:
-                    seen.add(key)
-                    result.append(s)
-            submissions = result
 
         def serialize(s):
             return {
@@ -331,9 +331,24 @@ class APISubmissionsCourse(APIAuthenticatedPage):
                 "stdout": s.stdout,
             }
 
-        submissions_list = [serialize(s) for s in submissions]
+        def submissions_iter():
+            """
+            Generator for stream_json_array() to stream the response instead of building the whole list in memory.
+            Reject duplicate submissions for "best" and "last".
+            """
+            seen = set()
+            for s in cursor:
+                if select in ("best", "last"):
+                    key = (tuple(sorted(s.username)), s.taskid)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                yield serialize(s)
 
-        return 200, submissions_list
+        if cursor.count() > streaming_threshold:
+            return stream_json_array(submissions_iter())
+
+        return 200, list(submissions_iter())
 
 
 class APISubmissionInput(APIAuthenticatedPage):

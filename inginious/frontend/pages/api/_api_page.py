@@ -7,7 +7,7 @@
 
 import json
 import flask
-from flask import Response
+from flask import Response, stream_with_context
 import jwt
 import logging
 
@@ -55,10 +55,15 @@ class APIPage(INGIniousPage):
     def _handle_api(self, handler, handler_args, handler_kwargs):
         """ Handle call to subclasses and convert the output to an appropriate value """
         try:
-            status_code, return_value = handler(*handler_args, **handler_kwargs)
+            result = handler(*handler_args, **handler_kwargs)
         except APIError as error:
             return error.send()
 
+        # Handlers that stream their response return flask.Response objects
+        if isinstance(result, Response):
+            return result
+
+        status_code, return_value = result
         return _api_convert_output(status_code, return_value)
 
     def _guess_available_methods(self):
@@ -184,6 +189,33 @@ class APINotFound(APIError):
 
     def __init__(self, message="Not found"):
         APIError.__init__(self, 404, {"error": message})
+
+
+def stream_json_array(items, status_code=200):
+    """
+        Build a flask.Response that streams a JSON array to the client as it is produced,
+        instead of building the whole list in memory before sending it.
+        `items` must be an iterable of items that can be serialized to JSON (e.g. a generator).
+
+        This has two main advantages for large collections:
+        - the client can start processing the first items before the whole response is ready ;
+        - the server does not need to hold the whole (serialized) collection in memory at once.
+
+        `stream_with_context()` is used to ensure that the Flask request context is preserved while streaming the response.
+        Allowing the `items` to be a generator that can access `flask.g`, `flask.request`, etc.
+    """
+
+    def _generate():
+        yield "["
+        first = True
+        for item in items:
+            yield ("" if first else ",") + json.dumps(item)
+            first = False
+        yield "]"
+
+    response = Response(stream_with_context(_generate()), status=status_code)
+    response.content_type = "text/json; charset=utf-8"
+    return response
 
 
 def _api_convert_output(status_code, return_value, response=None):
