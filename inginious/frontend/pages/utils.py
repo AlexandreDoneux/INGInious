@@ -46,6 +46,10 @@ class INGIniousPage(MethodView):
         """ Handles POST requests. It should be redefined by subclasses. """
         raise MethodNotAllowed()
 
+    def DELETE(self, *args, **kwargs):
+        """ Handles DELETE requests. It should be redefined by subclasses. """
+        raise MethodNotAllowed()
+
     def get(self, *args, **kwargs):
         """ Interfaces INGInious pages with Flask views for GET requests. """
         self._pre_check()
@@ -55,6 +59,11 @@ class INGIniousPage(MethodView):
         """ Interfaces INGInious pages with Flask views for POST requests. """
         self._pre_check()
         return self.POST(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """ Interfaces INGInious pages with Flask views for DELETE requests. """
+        self._pre_check()
+        return self.DELETE(*args, **kwargs)
 
     @property
     def submission_manager(self) -> WebAppSubmissionManager:
@@ -86,6 +95,9 @@ class INGIniousAuthPage(INGIniousPage):
         raise NotAcceptable()
 
     def GET_AUTH(self, *args, **kwargs):  # pylint: disable=unused-argument
+        raise NotAcceptable()
+
+    def DELETE_AUTH(self, *args, **kwargs):  # pylint: disable=unused-argument
         raise NotAcceptable()
 
     def GET(self, *args, **kwargs):
@@ -142,6 +154,23 @@ class INGIniousAuthPage(INGIniousPage):
                 return self.POST_AUTH(*args, **kwargs)
             else:
                 return render_template("auth.html", auth_methods=self.user_manager.get_auth_methods())
+
+    def DELETE(self, *args, **kwargs):
+        """
+        Checks if user is authenticated and calls DELETE_AUTH.
+        Otherwise, returns the login template.
+        """
+        if session.loggedin:
+            if not session.username and not self.__class__.__name__ == "ProfilePage":
+                return redirect(url_for("profilepage"))
+
+            if not self.is_lti_page and session.is_lti:  # lti session
+                self.user_manager.disconnect_user()
+                return render_template("auth.html", auth_methods=self.user_manager.get_auth_methods())
+
+            return self.DELETE_AUTH(*args, **kwargs)
+        else:
+            return render_template("auth.html", auth_methods=self.user_manager.get_auth_methods())
 
     def preview_allowed(self, *args, **kwargs):
         """
