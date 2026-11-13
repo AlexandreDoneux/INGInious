@@ -196,7 +196,7 @@ Someone (probably you) asked to reset your INGInious password. If this was you, 
         msg = ""
         error = False
         data = flask.request.form
-        data = {k: v.strip() for k, v in data.items()}  # Remove leading and trailing whitespace for all values of the form
+        data = {k: v.strip() for k, v in data.items()}
         if "register" in data:
             msg, error = self.register_user(data)
         elif "lostpasswd" in data:
